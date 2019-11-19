@@ -17,5 +17,5 @@ The folder Documentation contains a documentation.
 p.s.:
 Before running the program on your machine,
 you may need to adapt a few calls/folders in the csh scripts
-(the locations can be found by searching for "#### CHANGE").
+(the locations can be found by searching for "#### CHANGE"). In particular, fp_Wang and fp_Bott should point to the directories in which the reference bin model data is stored (these data are available from the Zenodo data set with DOI 10.5281/zenodo.3547341)
 See file "ProgramVersions.txt" for a list of program versions for which the code was successfully exectued.
