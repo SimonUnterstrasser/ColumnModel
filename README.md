@@ -1,4 +1,4 @@
-This repository constains Python 3 code of a
+This repository contains Python 3 code of a
 
 coalescence/aggregation column model
 
@@ -13,6 +13,10 @@ Execute "csh ComputeAgg_dummy.csh" for running a box/column model simulation.
 Execute "csh PlotAgg_dummy.csh" for a-posteriori plot gereration.
 All parameters are set within the csh-scripts.
 The folder Documentation contains a documentation.
+
+The revised code contains Python scripts ComputeAgg_dummy.py and PlotAgg_dummy.py. Those are equivalent to the csh counterparts.
+The advantage is that no csh script has to be executed any longer. Moreover, calls to sed (which caused trouble in some cases) are replaced by calls to python intrinsic module re.
+Then only Python and gcc are necessary for a successful execution of the code.
 
 p.s.:
 Before running the program on your machine,
