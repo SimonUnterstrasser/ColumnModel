@@ -17,14 +17,13 @@ import Misc as FK
 #GCCif (IREF == 1)
     #GCCif (KERNEL == 0)
 
-# analytische Referenzloesung fuer Golovin-Kernel
-def PlotGV_0D(ZPit_vec, ifirstGV=None, ilastGVonly=None):
+# analytical reference solution for Golovin kernel
+def PlotSD_0D(ZPit_vec, ifirstGV=None, ilastGVonly=None):
     import matplotlib.pyplot as plt
 
     #Einlesen der Referenzloesung
-    print('Einlesen der Golovin Loesung')
-    # Momente festlegen, Berechnet aus analytischer Loesung
-    #       ;analytische Loesung: Massenverteilung einlesen alle 200s
+    print('Read Golovin reference solution from files')
+    # mass distribution every 200s
     #         Analytical_Numerical_Solutions/Golovin_N240/Golovin_analyticsolution_3600s_i200s.txt ;  10um Mean radius
     #        Analytical_Numerical_Solutions/Golovin/Golovin_analyticsolution_3600s_i200s.txt       ; 9.3um Mean radius
 
@@ -57,7 +56,7 @@ def PlotGV_0D(ZPit_vec, ifirstGV=None, ilastGVonly=None):
     for i in range(0,nt):
         g_vec[i,:]=np.array(items[nbin*i:nbin*(i+1)])
 
-    #Plotten der Referenzloesung
+    #add reference solution to plot
     if(ifirstGV == 1):
         plt.plot(radius_vec[0:nbin],g_vec[0,0:nbin]*1e3,"k--")
     iPlot=1
@@ -67,7 +66,6 @@ def PlotGV_0D(ZPit_vec, ifirstGV=None, ilastGVonly=None):
     print(time_vec)
     print(ZPit_vec)
     for i in range(0,nt):
-        #Zum Plotten wird der Radius in um umgerechnet
         print(i,iPlot,time_vec[i], ZPit_vec[iPlot])
         if abs(time_vec[i] - ZPit_vec[iPlot]) < 0.001:
             print('plotte Zeitschritt',time_vec[i], ZPit_vec[iPlot],i,iPlot)
@@ -80,27 +78,25 @@ def defineMoments_0D():
     #solution for 9.3 um init
     print("read Golovin moments")
     nt_ref=7
-    GolovinMomente=np.zeros([nt_ref,4])
-    timeGolovin=np.arange(nt_ref)*600 # in sekunden  
-    GolovinMomente[:,0]=np.array([296.8e6, 120.7e6, 490.8e5, 199.6e5, 811.4e4, 329.9e4, 134.1e4])  # ; Anzahl in m^-3
-    
-    GolovinMomente[:,1]=np.array([1.00008e-3 ,1.00183e-3 , 1.00293e-3,1.00184e-3, 1.00101e-3,1.00063e-3, 1.00046e-3])/1.00008e-3 
-    GolovinMomente[:,1]=np.zeros(7)+1.0
-    #; Masse
-    
-    GolovinMomente[:,2]=np.array([6.739e-15 ,4.094e-14 , 2.472e-13 , 1.493e-12 , 9.029e-12 ,5.462e-11 , 3.304e-10])# ; Moment 2 in kg^2/m^3
-    GolovinMomente[:,3]=np.array([6.812e-26 , 3.993e-24 ,1.676e-22, 6.457e-21, 2.411e-19, 8.898e-18, 3.267e-16] )#; ;Moment 3 in kg^3/m^3
-    return timeGolovin, GolovinMomente
-    #Ende Golovin-Kernel
+    GolovinMoments=np.zeros([nt_ref,4])
+    timeGolovin=np.arange(nt_ref)*600 # in seconds
+    GolovinMoments[:,0]=np.array([296.8e6, 120.7e6, 490.8e5, 199.6e5, 811.4e4, 329.9e4, 134.1e4]) # number concentration in m^-3
+
+    GolovinMoments[:,1]=np.array([1.00008e-3 ,1.00183e-3 , 1.00293e-3,1.00184e-3, 1.00101e-3,1.00063e-3, 1.00046e-3])/1.00008e-3
+    GolovinMoments[:,1]=np.zeros(7)+1.0 # mass
+
+    GolovinMoments[:,2]=np.array([6.739e-15 ,4.094e-14 , 2.472e-13 , 1.493e-12 , 9.029e-12 ,5.462e-11 , 3.304e-10])# second moment in kg^2/m^3
+    GolovinMoments[:,3]=np.array([6.812e-26 , 3.993e-24 ,1.676e-22, 6.457e-21, 2.411e-19, 8.898e-18, 3.267e-16] )# third moment in kg^3/m^3
+    return timeGolovin, GolovinMoments
 
     #GCCendif /* (KERNEL == 0) */
 
-
     #GCCif ( KERNEL == 1 || KERNEL == 2 )
 
-def read_GVdata_Wang():
+def read_SDdata_Wang():
+# SD = size distribution
 
-# kn_name entweder 'Hall' oder 'Long'
+# kn_name is either 'Hall' or 'Long'
 
     #GCCif (KERNEL == 1 )
     kn_name = 'Long'
@@ -108,13 +104,13 @@ def read_GVdata_Wang():
     #GCCif (KERNEL == 2 )
     kn_name = 'Hall'
     #GCCendif /* (KERNEL == 2 ) */
-    # 572 ist die maximale Binanzahl der eingelesenen Daten
+    # 572 is the maximal bin number of the input data
     g_wang=np.zeros([7,572])
     r_wang=np.zeros([7,572])
     nr_wang=np.zeros(7,dtype='int')
 
-    # Spalte 1: r ist gegeben in mm
-    # Spalte 5: g(ln(r)) ist gegeben in g/m^3
+    # Spalte 1: radius r is given in mm
+    # Spalte 5: g(ln(r)) has units g/m^3
 
     fn_part_vec = ("00","10","20","30","40","50","60")
     nr_time=7
@@ -133,43 +129,24 @@ def read_GVdata_Wang():
     print('nr_wang: ', nr_wang)
     return r_wang,g_wang,nr_wang
 
-
-#def PlotGV_0D(ZPit_vec,ifirstGV=None,ilastGVonly=None):
-
-    #import matplotlib.pyplot as plt
-    ##Einlesen der Referenzloesung
-    #r_wang,g_wang,nr_wang = read_GVdata_Wang()
-    ##Plotten der Referenzloesung
-    #nr_GVplot= len(ZPit_vec)
-    #iGV_select = range(1,nr_GVplot)
-    #if (ifirstGV is not None): iGV_select = range(0,nr_GVplot)
-    #iGV_select = range(0,nr_GVplot)
-    #if (ilastGVonly == 1): iGV_select=[nr_GVplot-1]
-    #for i in iGV_select:
-        ##Zum Plotten wird der Radius in um umgerechnet
-        #if abs(int(ZPit_vec[i]/600) - ZPit_vec[i]/600) < 0.001:
-            #iii=int(ZPit_vec[i]/600)
-            #print('plotte Zeitschritt',ZPit_vec[i],iii)
-            #plt.plot(r_wang[iii,0:nr_wang[iii]]*1e3,g_wang[iii,0:nr_wang[iii]], color='k', label='Wang')
-
 def defineMoments_0D():
 
-    #verwende tabellierte Werte aus Wang-Paper
+    #use tabulated values from Wang-Paper
     nt_ref=7
     WangMomente=np.zeros([nt_ref,4])
-    timeWang=np.arange(nt_ref)*600 # in Sekunden
+    timeWang=np.arange(nt_ref)*600 # in seconds
 
     #GCCif (KERNEL == 1 )
-    WangMomente[:,0]=np.array([295.4e6     , 287.4e6     , 278.4e6     ,  264.4e6       , 151.7e6, 13.41e6, 1.212e6])  # ; Anzahl in m^-3
-    WangMomente[:,1]=np.array([0.999989e-3 , 0.999989e-3 , 0.999989e-3 ,  0.999989e-3   ,0.999989e-3, 0.999989e-3, 0.999989e-3])/0.999989e-3 #; Masse
-    WangMomente[:,2]=np.array([6.739e-15   , 7.402e-15   , 8.72e-15,      3.132e-13      , 3.498e-10, 1.068e-8,3.199e-8])# ; Moment 2 in kg^2/m^3
-    WangMomente[:,3]=np.array([6.813e-26   , 9.305e-26   ,5.71e-25,       3.967e-20       , 1.048e-15, 2.542e-13, 1.731e-12] )#; ;Moment 3 in kg^3/m^3
+    WangMomente[:,0]=np.array([295.4e6     , 287.4e6     , 278.4e6     ,  264.4e6       , 151.7e6, 13.41e6, 1.212e6])  # number concentration in m^-3
+    WangMomente[:,1]=np.array([0.999989e-3 , 0.999989e-3 , 0.999989e-3 ,  0.999989e-3   ,0.999989e-3, 0.999989e-3, 0.999989e-3])/0.999989e-3 # mass
+    WangMomente[:,2]=np.array([6.739e-15   , 7.402e-15   , 8.72e-15,      3.132e-13      , 3.498e-10, 1.068e-8,3.199e-8])# second moment in kg^2/m^3
+    WangMomente[:,3]=np.array([6.813e-26   , 9.305e-26   ,5.71e-25,       3.967e-20       , 1.048e-15, 2.542e-13, 1.731e-12] )# third moment in kg^3/m^3
     #GCCendif /* (KERNEL == 1 ) */
     #GCCif (KERNEL == 2 )
-    WangMomente[:,0]=np.array([295.4e6 , 287.8e6, 279.9e6, 270.2e6, 231.7e6, 124.5e6, 73.66e6])  # ; Anzahl in m^-3
-    WangMomente[:,1]=np.array([0.999989e-3 ,0.999989e-3 ,0.999989e-3,0.999989e-3,0.999989e-3, 0.999989e-3, 0.999989e-3])/0.999989e-3  #; Masse
-    WangMomente[:,2]=np.array([6.739e-15 , 7.184e-15, 7.999e-15, 7.827e-14, 1.942e-11, 7.928e-10,6.997e-9])# ; Moment 2 in kg^2/m^3
-    WangMomente[:,3]=np.array([6.813e-26 , 8.282e-26,3.801e-25,2.531e-21, 6.107e-18, 2.108e-15, 1.221e-13] )#; ;Moment 3 in kg^3/m^3
+    WangMomente[:,0]=np.array([295.4e6 , 287.8e6, 279.9e6, 270.2e6, 231.7e6, 124.5e6, 73.66e6]) # number concentration in m^-3
+    WangMomente[:,1]=np.array([0.999989e-3 ,0.999989e-3 ,0.999989e-3,0.999989e-3,0.999989e-3, 0.999989e-3, 0.999989e-3])/0.999989e-3 # mass
+    WangMomente[:,2]=np.array([6.739e-15 , 7.184e-15, 7.999e-15, 7.827e-14, 1.942e-11, 7.928e-10,6.997e-9])# second moment in kg^2/m^3
+    WangMomente[:,3]=np.array([6.813e-26 , 8.282e-26,3.801e-25,2.531e-21, 6.107e-18, 2.108e-15, 1.221e-13] )# third moment in kg^3/m^3
     #GCCendif /* (KERNEL == 2 ) */
     return timeWang, WangMomente
 
@@ -205,7 +182,7 @@ def get_RefMetaData(isimREF=0, fp=None):
     [LWC, Ntot, rmean, mmean, scal, dlnr, ikernel, i_init, i_process, i_bc_periodic] = \
         np.array(strline,dtype='float')
     strline = dat.readline().split()
-    #Zeitlich konstante inflow_SD am Oberrand in kg/m^3
+    #time-constant inflow_SD at the upper boundary in kg/m^3
     g_init_top = np.array(strline, dtype='float')
     strline = dat.readline().split()
     #Radius grid in m

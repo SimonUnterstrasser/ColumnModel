@@ -22,22 +22,24 @@ leg_ncol=1
 iMom_select_const = [0,2] # None
 labelMoments_dict={}
 iPanelAnnotate=None
+i_inline=0
 iBin_noLegend = 0
 nrPanels=1
-iPanel=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-iPanelREF=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+iPanel=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+iPanelREF=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 iEmptydom = 0
 iHalfDom  = 0
 iBoxM_LWC_N_r_var = 0
 iPlotextras = 0
-
+iClip = 0
+isavedata_filename = None
 #GCCif (IREF == 9)
 nrsimREF = 1
 ntREFmax = 10000
 #GCCendif /* (IREF == 9) */
 
 #GCCif (DISCRETE == 0)
-ytitle = '$g_{ln r}$ / (g / cm$^3$)'
+ytitle = '$g_{\mathrm{ln} r}$ / (g / cm$^3$)'
 xscale="log"
     #GCCif (KERNEL == 1 || KERNEL == 2)
 xlimGV=(1e0,5e3)
@@ -102,13 +104,14 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
         iMom_select = iMom_select_const.copy()
         nrMom_select= len(iMom_select)
 
-    #Plotte Momente
-    #MOMsave enthaelt die Momente aller Instanzen (iMean=0)
-    #MOMsave enthaelt die gemittelten Momente (iMean=1)
-    #fp_out: Ausgabepfad des Plots
-    #iplot_onlyMOMmean: 0 plotte alle Instanzen; =1 plotte nur Mittel
-    #iplot_mode: = 0 Plot wird mit einem Aufruf von PlotMoments erstellt
-    #            > 1 Kurven werden peu a peu hinzugefuegt (beim ersten Aufruf iplot_mode = 1 und beim letzten Aufruf iplot_mode = 3, alle Aufrufe dazwischen mit = 2)
+    #generates plots with the temporal evolution of selected moments
+    #MOMsave contains moment data, separately for each realisation (iMean=0)
+    #MOMsave contains moment data, average over all realisations (iMean=1)
+    #fp_out: output path
+    #iplot_onlyMOMmean: 0 plot each realisation separately; =1 plot only ensemble average
+    # the PlotMoments routine is called multiple times
+    # if the routine is called with iplot_mode = 0, then the plot is initialised
+    # if the routine is called with iplot_mode > 1 then curves are added one by one (the first call is with iplot_mode = 1, the last call with iplot_mode = 3, all intermediate calls with 2)
 
 #GCCif (IREF == 9)
     if (iplot_mode == 0) or (iplot_mode == 3):
@@ -162,13 +165,13 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
     if (iMean == 1):
         MOMmean=MOMsave.copy()
         iplot_onlyMOMmean = 1
-        MOMsave = np.expand_dims(MOMsave, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        MOMsave = np.expand_dims(MOMsave, axis=0) # add a dummy first dimension with length 1
 
     [nr_inst,nt_time,nr_Mom]=MOMsave.shape
 
     if (iMean == 0):
         #MOMmean=FK.CIO_MOMmean(data_in=MOMsave,skal_m=skal_m,dV=dV)
-        MOMmean=FK.CIO_MOMmean(data_in=MOMsave)
+        MOMmean=FK.CIO_MOMmean(data_in=MOMsave,fp_out='')
 
     if (skal_m is not None):
         for i in range(4):
@@ -189,9 +192,9 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                 MOM_StdDev = np.expand_dims(MOM_StdDev, axis=0)
             if (iplotStdDev == 2):
                 print("Compute 10, 90 percentile",iMean)
-                MOM_StdDev = np.abs(np.percentile(MOMsave, [10,90], axis=0)-MOMmean)# als positive deviation von Mittelwert angeben
+                MOM_StdDev = np.abs(np.percentile(MOMsave, [10,90], axis=0)-MOMmean) # given as positive deviations from the mean value
 
-    print('Plotte Momente: ', nr_inst,nt_time,nr_Mom)
+    print('Plot moment data: ', nr_inst,nt_time,nr_Mom)
 
     print('iplot_mode', iplot_mode)
     if (iplot_mode == 0) or (iplot_mode == 1):
@@ -202,35 +205,68 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
         #print(Simcycler_dict,Sim_cycler)
         if (iplot_onlyMOMmean == 0):
             custom_cycler   = cycler(color=[plt.cm.cool(i) for i in np.linspace(0, 1, nr_inst)])
-            plt.rc('axes', prop_cycle=custom_cycler) #dieser Aufruf inkl der vorangegangenen Definition des Cyclers muss vor plt.figure kommen!
+            plt.rc('axes', prop_cycle=custom_cycler) #this call together with preceding cycler definition must be placed before plt.figure call!
         #GCCif (MOM_Panel2Dsims == 0)
         yfigsize = (nrMom_select+iDmean+iSIPplot) * 1.5
         xfigsize = 4 + 3.5*(nrPanels-1)
         fig0 = plt.figure(figsize=(xfigsize,yfigsize), dpi=300)
         ax_vec = fig0.subplots(nrMom_select+iDmean+iSIPplot,nrPanels,squeeze=False)
         if (nrMom_select+iDmean+iSIPplot > 1 or nrPanels > 1):
-            fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=0.94-0.03, wspace=0.3, hspace=0.3)
-        if (title is not None): plt.suptitle(title)
+            if (iPlotextras == 6) or (iBoxM_LWC_N_r_var == 1):
+                fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=0.91, wspace=0.3, hspace=0.3)
+            elif ((iHalfDom == 1) and (iExtraLegend != 5)) or ((iEmptydom == 1) and (iExtraLegend != 5)):
+                fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=0.94, wspace=0.3, hspace=0.3)
+            else:
+                fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=0.9, wspace=0.1, hspace=0.3)
+        if (title is not None):
+            if (i_inline == 0):
+                plt.suptitle(title)
+            else:
+                for ax_tmp in ax_vec.flat:
+                    ax_tmp.text(0.4,0.75,title, fontsize= 10, transform=ax_tmp.transAxes,  weight='bold',bbox=dict(facecolor='mediumorchid', edgecolor='black', boxstyle = 'square, pad=0.2'))
         #GCCendif /* (MOM_Panel2Dsims == 0) */
         #GCCif (MOM_Panel2Dsims == 1)
         yfigsize = nr_rows * 1.5
         xfigsize = 4 + 3.5*(nr_cols-1)
+
+        #Default settings for iClip = 0
+        colwidth = [1]*nr_cols # default: all columns have equal width
+            # xfigsize and yfigsize are not changed
+        tmin = [0]*nr_cols
+        wspace = 0.1
+        top = 0.91
+
+        if (iClip == 1):
+            colwidth = [1,1]
+            xfigsize = 4.0
+            tmin = [30,30]
+            wspace = 0.2
+            top = 0.92
+        if (iClip == 2):
+            colwidth = [1]
+            xfigsize = 2.0
+            tmin = [30,30,30]
+            top = 0.92
+        if (iClip == 3):
+            colwidth = [2,1]
+            xfigsize = 6.0
+            tmin = [0,30]
+            wspace = 0.15
         fig0 = plt.figure(figsize=(xfigsize,yfigsize), dpi=300)
-        ax_vec = fig0.subplots(nr_rows,nr_cols,squeeze=False)
-        fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=0.94-0.03, wspace=0.1, hspace=0.3)
+
+        ax_vec = fig0.subplots(nr_rows,nr_cols,squeeze=False,gridspec_kw={'width_ratios': colwidth})
+        fig0.subplots_adjust(left=0.22, bottom=0.15, right=0.85, top=top, wspace=wspace, hspace=0.3)
         iDmean = 0
-        if (titleMAIN is not None): 
+        if (titleMAIN is not None):
             if (iPlotextras == 2 or \
                 iPlotextras == 3 or \
                 iPlotextras == 4 or \
                 iPlotextras == 5):
-                plt.suptitle(titleMAIN,va='bottom')
+                plt.suptitle(titleMAIN,va='bottom')  #va='bottom'
             else:
                 plt.suptitle(titleMAIN)
         #GCCendif /* (MOM_Panel2Dsims == 1) */
-
         print(ax_vec.shape)
-
 
         plt.set_cmap('Reds')
         #ylabel_vec=['$\lambda_0$','$\lambda_1$','$\lambda_2$','$\lambda_3$']
@@ -238,8 +274,8 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
         str_unit = 'kg'
         if (skal_m is not None):
             str_unit = r'$m_e$'
-        #GCCif (MOM_meanTD <= 1)
 
+        #GCCif (MOM_meanTD <= 1)
         ylabel_vec = ['$\lambda_0$ / m$^{-3}$',
                       '$\lambda_1$ / (' + str_unit + ' m$^{-3}$)',
                       '$\lambda_2$ / (' + str_unit + '$^{2}$ m$^{-3}$)',
@@ -315,7 +351,7 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
         else:
             ax_vec[0,ipc].plot(t_vec_MOMsave,Dmean, markevery=10)
         ax_vec[0,ipc].get_xaxis().set_ticklabels([])
-        ax_vec[0,ipc].set_ylabel('$D_{mean}$ / $\mu$m')
+        ax_vec[0,ipc].set_ylabel('$D_\mathrm{mean}$ / $\mu$m')
         ax_vec[0,ipc].set_xlim([0,math.ceil(max(t_vec_MOMsave))])
         ax_vec[0,ipc].set_ylim([0,100])
         #ax_vec[0,ipc].minorticks_on()
@@ -325,44 +361,42 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
         ax_vec[iDmean,ipc].plot(t_vec_GVplot,nr_SIPs_mean[:], markevery=10)
         print('nr_SIPs',nr_SIPs_mean[:])
         ax_vec[iDmean,ipc].get_xaxis().set_ticklabels([])
-        ax_vec[iDmean,ipc].set_ylabel('$n_{SIP}$')
+        ax_vec[iDmean,ipc].set_ylabel('$n_\mathrm{SIP}$')
         ax_vec[iDmean,ipc].set_xlim([0,math.ceil(max(t_vec_GVplot))])
         #ax_vec[iDmean,ipc].set_ylim([0,150])
         ax_vec[iDmean,ipc].minorticks_on()
     #GCCendif /* (addSIPplot > 0) */
 
     for iMom in range(nrMom_select):
-        i = iMom_select[iMom]
-        print('*****************************',i)
+        iiMom = iMom_select[iMom]
+        print('*****************************',iiMom)
 
-        #plt.subplot(4,1,i+1)
         #print('t_vec_MOMsave', t_vec_MOMsave)
-        #print('MOMsave[k,:,i]', MOMsave[k,:,i])
+        #print('MOMsave[k,:,iiMom]', MOMsave[k,:,iiMom])
         #GCCif (MOM_Panel2Dsims == 0)
         ipr=iMom+iDmean+iSIPplot
         if (iplot_mode == 0) or (iplot_mode == 1):
-            ax_vec[ipr,ipc].set_ylabel(ylabel_vec[i])
+            ax_vec[ipr,ipc].set_ylabel(ylabel_vec[iiMom])
         #GCCendif /* (MOM_Panel2Dsims == 0) */
 
         if (iplot_onlyMOMmean == 0):
             for k in range(0,nr_inst):
-                ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMsave[k,:,i],'r:')
+                ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMsave[k,:,iiMom],'r:')
             if (iplotStdDev == 0):
-                line,=ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMmean[:,i],'k:',linewidth=2.0)
+                line,=ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMmean[:,iiMom],'k:',linewidth=2.0)
             else:
-                #print('AA', MOMmean[:,i].shape,MOM_StdDev[:,i].shape)
-                ax_vec[ipr,ipc].errorbar(t_vec_MOMsave,MOMmean[:,i], fmt='k:',linewidth=2.0, markevery=10, yerr=np.squeeze(MOM_StdDev[:,:,i]), errorevery=10)
+                #print('AA', MOMmean[:,iiMom].shape,MOM_StdDev[:,iiMom].shape)
+                ax_vec[ipr,ipc].errorbar(t_vec_MOMsave,MOMmean[:,iiMom], fmt='k:',linewidth=2.0, markevery=10, yerr=np.squeeze(MOM_StdDev[:,:,iiMom]), errorevery=10)
         else:
             if (iplotStdDev == 0):
-                #print('MOMmean[:,i]: ', MOMmean[:,i])
-                line,=ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMmean[:,i], markevery=10)
+                #print('MOMmean[:,iiMom]: ', MOMmean[:,iiMom])
+                line,=ax_vec[ipr,ipc].plot(t_vec_MOMsave,MOMmean[:,iiMom], markevery=10)
             else:
                 #print(ip,i_simMOM)
-                #print(MOM_StdDev[:,i]/MOMmean[:,i])
-                line,=ax_vec[ipr,ipc].errorbar(t_vec_MOMsave,MOMmean[:,i],  markevery=10, yerr=np.squeeze(MOM_StdDev[:,:,i]), errorevery=10+i_simMOM)
+                #print(MOM_StdDev[:,iiMom]/MOMmean[:,iiMom])
+                line,=ax_vec[ipr,ipc].errorbar(t_vec_MOMsave,MOMmean[:,iiMom],  markevery=10, yerr=np.squeeze(MOM_StdDev[:,:,iiMom]), errorevery=10+i_simMOM)
             if (i_simMOM < nr_labels):
                 ax_vec[ipr,ipc].set_label(label[i_simMOM])
-
 
         #GCCif (MOM_Panel2Dsims == 0)
         if (iplot_mode == 0) or (iplot_mode == 3):
@@ -370,15 +404,15 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                 #ax_vec[ipr,ipii].minorticks_on()
                 if (iEmptydom == 1):
                     print('---------------------------------------------------------------')
-                    print('choose EmptyDom plot settings', i)
-                    if (i == 0):
+                    print('choose EmptyDom plot settings', iiMom)
+                    if (iiMom == 0):
                         ax_vec[ipr,ipii].set_ylim([0,1.1e6])
                         #ax_vec[ipr,ipii].yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
                         ax_vec[ipr,ipii].ticklabel_format(axis='y', style='sci', scilimits=(0,0))
                         #ax_vec[ipr,ipii].set_ylim([0,.1e5])
-                    if (i == 2 or i == 3):
+                    if (iiMom == 2 or iiMom == 3):
                         ax_vec[ipr,ipii].semilogy()
-                        if (i == 2):
+                        if (iiMom == 2):
                             print('YES!!!!!!!!!!')
                             ax_vec[ipr,ipii].set_ylim([1e-16,1e-10])
                     ax_vec[ipr,ipii].set_xlim([0,math.ceil(max(t_vec_MOMsave))])
@@ -392,20 +426,19 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                         ax_vec[0,ipii].minorticks_on()
                         ax_vec[0,ipii].grid(b=True)
 
-                    if (i != 1):
+                    if (iiMom != 1):
                         ax_vec[ipr,ipii].semilogy()
                     else:
                         ax_vec[ipr,ipii].set_ylim([0,None])
 
-                    if (i == 0):
+                    if (iiMom == 0):
                         ax_vec[ipr,ipii].set_ylim([1e6,1e9])
                         ax_vec[ipr,ipii].yaxis.set_ticks([1e6,1e7,1e8,1e9])
-                    #if (i == 1):
+                    #if (iiMom == 1):
                         #ax_vec[ipr,ipii].set_ylim([0,3e-4])
 
-                    if (i == 2):
+                    if (iiMom == 2):
                         ax_vec[ipr,ipii].yaxis.set_ticks([1e-15,1e-13,1e-11,1e-9,1e-7])
-
 
                     ax_vec[ipr,ipii].set_xlim([0,60])
                     ax_vec[ipr,ipii].xaxis.set_ticks([0,10,20,30,40,50,60])
@@ -428,42 +461,29 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     ax_vec[ipr,ipii].set_xlim([0,100])
                     ax_vec[ipr,ipii].xaxis.set_ticks([0,20,40,60,80,100])
                     ax_vec[ipr,ipii].semilogy()
-                    if (i == 0):
+                    if (iiMom == 0):
                         ax_vec[ipr,ipii].set_ylim([1e3,1e9])
                         ax_vec[ipr,ipii].yaxis.set_ticks([1e3,1e5,1e7,1e9])
-                    if (i == 2):
+                    if (iiMom == 2):
                         ax_vec[ipr,ipii].set_ylim([1e-15,1e-6])
                         ax_vec[ipr,ipii].yaxis.set_ticks([1e-15,1e-12,1e-9,1e-6])
                     ax_vec[ipr,ipii].minorticks_on()
                     ax_vec[ipr,ipii].grid(b=True)
 
 
-                if ((1-iEmptydom)*(1-iHalfDom)*(1-iBoxM_LWC_N_r_var) == 1): 
+                if ((1-iEmptydom)*(1-iHalfDom)*(1-iBoxM_LWC_N_r_var) == 1):
                     print('choose generic settings')
 
                     ax_vec[ipr,ipii].minorticks_on()
                     ax_vec[ipr,ipii].grid(b=True)
-                    if (i == 0):
-                        #ax_vec[ip].set_ylim([1e9,1e11])
-                        #ax_vec[ip].set_ylim([0,40])
-                        ax_vec[ipr,ipii].set_ylim([1e3,1e9])
-                        ax_vec[ipr,ipii].set_ylim([1e6,4e8])
-                    if (i == 1):
+                    if (iiMom != 1):
+                        ax_vec[ipr,ipii].semilogy()
+                    if (iiMom == 0):
+                        ax_vec[ipr,ipii].set_ylim([1e5,4e8])
+                        ax_vec[ipr,ipii].yaxis.set_ticks([1e5,1e6,1e7,1e8])
+                    if (iiMom == 1):
                         ax_vec[ipr,ipii].set_ylim([0,3e-4])
 
-                    #if (i != -99):
-                    if (i != 1):
-                    #if (i == 2 or i == 3):
-                        ax_vec[ipr,ipii].semilogy()
-
-                    else:
-                        ax_vec[ipr,ipii].set_ylim([0,None])
-                        #if (i == 0):
-                            #ax_vec[ipr,ipii].set_ylim([1e3,1e9])
-                    #if (i == 0):
-                        #ax_vec[ipr,ipii].set_ylim([0,40])
-                    #else:
-                        #ax_vec[ipr,ipii].set_ylim([0,3])
                     ax_vec[ipr,ipii].set_xlim([0,60])
                     ax_vec[ipr,ipc].xaxis.set_ticks([0,10,20,30,40,50,60])
 
@@ -489,25 +509,28 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                 print('================================================================')
                 if (iPlotextras == 4):
                     print('iPlotextras 4')
-                    ax_vec[ipr,ipc].set_ylim([4e7,3e8])
+                    if (iiMom == 0):
+                        ax_vec[ipr,ipc].set_ylim([4e7,3e8])
                 elif (iPlotextras == 5):
                     print('iPlotextras 5')
                     ax_vec[ipr,ipc].semilogy()
-                    ax_vec[ipr,ipc].set_ylim([1e4,4e8])
-                    ax_vec[ipr,ipc].yaxis.set_ticks([1e4,1e5,1e6,1e7,1e8])
+                    if (iiMom == 0):
+                        ax_vec[ipr,ipc].set_ylim([1e4,4e8])
+                        ax_vec[ipr,ipc].yaxis.set_ticks([1e4,1e5,1e6,1e7,1e8])
                 else:
                     ax_vec[ipr,ipc].semilogy()
-                    ax_vec[ipr,ipc].set_ylim([1e5,4e8])
-                    ax_vec[ipr,ipc].yaxis.set_ticks([1e5,1e6,1e7,1e8])
+                    if (iiMom == 0):
+                        ax_vec[ipr,ipc].set_ylim([1e5,4e8])
+                        ax_vec[ipr,ipc].yaxis.set_ticks([1e5,1e6,1e7,1e8])
 
                 ax_vec[ipr,ipc].minorticks_on()
                 ax_vec[ipr,ipc].grid(b=True)
 
-                ax_vec[ipr,ipc].set_xlim([0,60])
-                ax_vec[ipr,ipc].xaxis.set_ticks([0,10,20,30,40,50,60])
+                ax_vec[ipr,ipc].set_xlim([tmin[ipc],60])
+                ax_vec[ipr,ipc].xaxis.set_ticks(np.arange(tmin[ipc],61,10))
 
                 if (ipc == 0):  # include y-axis only in left most plot
-                    ax_vec[ipr,ipc].set_ylabel(ylabel_vec[iMom])
+                    ax_vec[ipr,ipc].set_ylabel(ylabel_vec[iiMom])
                 else:
                     ax_vec[ipr,ipc].get_yaxis().set_ticklabels([])
                     ax_vec[ipr,ipc].get_yaxis().set_ticklabels([],minor=True)
@@ -516,7 +539,10 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     ax_vec[ipr,ipc].set_xlabel(xlabel_Mom[itime_legend])
                 else:
                     ax_vec[ipr,ipc].get_xaxis().set_ticklabels([])
-            ax_vec[ipr,ipc].set_title(title_vec[iiPanel])
+            if (i_inline == 0):
+                ax_vec[ipr,ipc].set_title(title_vec[iiPanel])
+            else:
+                ax_vec[ipr,ipc].text(xpos[iiPanel], zpos[iiPanel], title_vec[iiPanel], fontsize= fontsize_inline, transform=ax_vec[ipr,ipc].transAxes,  weight='bold', bbox=dict(facecolor='mediumorchid', edgecolor='black', boxstyle = 'square, pad=0.2'))
 
             if (iplot_mode == 0) or (iplot_mode == 3):
                 print('================================================================')
@@ -529,27 +555,31 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     else:
                         ha='left'
                         va='bottom'
-                        if (len(text) == 4):
+                        if (len(text) >= 4):
                             ha=text[3]
                         if (len(text) == 5):
                             va=text[4]
+                        print('ha,va',ha,va)
                         ax_vec[ipr,ipc].text(text[1],text[2], text[0], horizontalalignment=ha,verticalalignment=va, transform=ax_vec[ipr,ipc].transAxes,bbox=dict(facecolor='white',pad=2),fontsize=6)
                 if iPanelAnnotate is not None:
-                    ax_vec[ipr,ipc].text(iPanelAnnotate[0],iPanelAnnotate[1], string.ascii_lowercase[iiPanel]+')', transform=ax_vec[ipr,ipc].transAxes,  weight='bold')
+                    delh = 0.0
+                    if (iClip == 3) and (ipc == 1):
+                        delh = 0.05
+                    ax_vec[ipr,ipc].text(iPanelAnnotate[0]-delh,iPanelAnnotate[1], string.ascii_lowercase[iiPanel]+')', transform=ax_vec[ipr,ipc].transAxes,  weight='bold')
             #GCCif (IREF == 1)
-                #Einlesen der Momente von Referenz-Loesung
+                # read moment data of reference solution
                 [timeREF, MomentsREF] = REF.defineMoments_0D()
                 if (itime_legend == 2): timeREF = timeREF/60
                 iiMom = iMom_select[iMom]
-                line,=ax_vec[ipr,ipc].plot(timeREF,MomentsREF[:,iiMom], color='k', label='Bin')
+                line,=ax_vec[ipr,ipc].plot(timeREF,MomentsREF[:,iiMom], color='k', label='BIN')
                 print('aa',line.get_c(),line.get_ls())
             #GCCendif /* (IREF == 1) */
 
             #GCCif (IREF == 9)
                 color_tmp = 'k'
-                label_tmp = 'Bin'
+                label_tmp = 'BIN'
                 isimREF = 0
-                line,=ax_vec[ipr,ipc].plot(t_vecREF[:ntREF_vec[isimREF]],MOMsaveREF[isimREF,i,:ntREF_vec[isimREF]], color=color_tmp, label=label_tmp, linestyle=lsREF)
+                line,=ax_vec[ipr,ipc].plot(t_vecREF[:ntREF_vec[isimREF]],MOMsaveREF[isimREF,iiMom,:ntREF_vec[isimREF]], color=color_tmp, label=label_tmp, linestyle=lsREF)
             #GCCendif /* (IREF == 9) */
 
                 if (iExtraLegend == 1):
@@ -557,7 +587,7 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     if (ipr == 1) and (ipc == 0):
                         label_extra = ['24', '49', '98', '197', '296', '497', '993']
                         fs=labelMoments_dict.get('fs',5)
-                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower center', title='$N_{SIP,GB}$',title_fontsize = fs*1.3,ncol=2) #,title_fontsize=fs
+                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower center', title='$N_\mathrm{SIP,GB}$',title_fontsize = fs*1.3,ncol=2) #,title_fontsize=fs
                         bb = leg_extra.get_bbox_to_anchor().inverse_transformed(ax_vec[ipr,ipc].transAxes)
                         # Change to location of the legend.
                         xOffset = 0.1
@@ -569,11 +599,11 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                         #label_extra = ['24','124', '248','197','993','1987']
                         label_extra = ['98', '496', '993', '497', '2484', '4968']
                         fs=labelMoments_dict.get('fs',5)
-                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower center', title='$N_{SIP,GB}$',title_fontsize = fs*1.3,ncol=2) #,title_fontsize=fs
+                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower center', title='$N_\mathrm{SIP,GB}$',title_fontsize = fs*1.3,ncol=2) #,title_fontsize=fs
                         # Get the bounding box of the original legend
                         bb = leg_extra.get_bbox_to_anchor().inverse_transformed(ax_vec[ipr,ipc].transAxes)
                         # Change to location of the legend.
-                        xOffset = 0.1
+                        xOffset = 0.15
                         bb.x0 += xOffset
                         bb.x1 += xOffset
                         leg_extra.set_bbox_to_anchor(bb, transform = ax_vec[ipr,ipc].transAxes)
@@ -582,7 +612,7 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     if (ipr == 0) and (ipc == 0):
                         label_extra = ['24','49', '98','197','296','497','993']
                         fs=labelMoments_dict.get('fs',5)
-                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower left', title='$N_{SIP,GB}$',ncol=2)
+                        leg_extra = ax_vec[ipr,ipc].legend(label_extra, fontsize=fs, loc='lower left', title='$N_\mathrm{SIP,GB}$',ncol=2)
                         bb = leg_extra.get_bbox_to_anchor().inverse_transformed(ax_vec[ipr,ipc].transAxes)
                         # Change to location of the legend.label_vec
                         xOffset = 0.2
@@ -592,12 +622,13 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
 
                 if (iBin_noLegend == 0):
                     print('mit Bin curve in legend')
-                    label=label_vec[iiPanel]+['Bin']
+                    label=label_vec[iiPanel]+['BIN']
                 else:
                     print('ohne Bin curve in legend')
                     label=label_vec[iiPanel]
 
                 if (label[0] is not None):
+                    print('label[0]', label[0])
                     lc=labelMoments_dict.get('loc','lower left')
                     fs=labelMoments_dict.get('fs', 5)
                     leg_ncol=labelMoments_dict.get('ncol',1)
@@ -608,10 +639,14 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                     #lc ='lower right'
 
                     if (leg_ncol == 1):
-                        print('labels:', label[:nr_sims+iaddsimREF])
+                        print('A labels:', label[:nr_sims+iaddsimREF])
+                        lab_sc = None
                         if (iiPanel == 2) & (iPlotextras == 1):
                             leg_ncol = 2
-                        leg_tmp = ax_vec[ipr_leg,ipc_leg].legend(label[:nr_sims+iaddsimREF], fontsize=fs, loc=lc, ncol=leg_ncol)
+                        if (iiPanel == 6) & (iPlotextras == 1):
+                            lab_sc = 0.2
+
+                        leg_tmp = ax_vec[ipr_leg,ipc_leg].legend(label[:nr_sims+iaddsimREF], fontsize=fs, loc=lc, ncol=leg_ncol,labelspacing = lab_sc)
                         #legend = plt.legend(handles=[one, two, three], title="title", loc=4, fontsize='small', fancybox=True)
                     else:
                         handles, labels = ax_vec[0,ipc_leg].get_legend_handles_labels()
@@ -637,30 +672,30 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                 ax_vec[0,ipc].text(text[1],text[2], text[0], horizontalalignment=ha,verticalalignment='top', transform=ax_vec[0,ipc].transAxes,bbox=dict(facecolor='none',pad=2),fontsize=6)
 
         #GCCif ((IREF == 1) || (IREF == 3))
-        #Einlesen der Momente von Referenz-Loesung
+        # read moments of reference solution
         [timeREF, MomentsREF] = REF.defineMoments_0D()
         print('timeREF A',timeREF)
         if (itime_legend == 2): timeREF = timeREF/60
         print('timeREF B',timeREF)
         for iMom in range(nrMom_select):
-            i = iMom_select[iMom]
+            iiMom = iMom_select[iMom]
             ipr=iMom+iDmean+iSIPplot
-            print('CAB',iMom,nrMom_select,i,ipr,ipc,iDmean,iSIPplot)
+            print('CAB',iMom,nrMom_select,iiMom,ipr,ipc,iDmean,iSIPplot)
             #GCCif (IREF == 3)
-            if (i == 2):
+            if (iiMom == 2):
                 M2_init=skal_m*skal_m*nplot*dVi
                 tau=1./(C_original*M2_init)
-                ax_vec[ipr,ipc].plot([tau,tau],[min(MomentsREF[:,i]),max(MomentsREF[:,i])],'k',label='Analytical')
-            if (i == 1):
+                ax_vec[ipr,ipc].plot([tau,tau],[min(MomentsREF[:,iiMom]),max(MomentsREF[:,iiMom])],'k',label='Analytical')
+            if (iiMom == 1):
                 continue
             #GCCendif
-            ax_vec[ipr,ipc].plot(timeREF,MomentsREF[:,i],'k',label='Bin')
+            ax_vec[ipr,ipc].plot(timeREF,MomentsREF[:,iiMom],'k',label='BIN')
         #GCCendif
         #GCCif (IREF == 9)
         if (nrsimREF == 1):
             color_tmp = 'k'
-            label_tmp = 'Bin'
-            label.append('Bin')
+            label_tmp = 'BIN'
+            label.append('BIN')
         else:
             color_tmp = None
             label_tmp = None
@@ -669,15 +704,15 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
             print('nrsimREF: ', nrsimREF)
             ipc=iPanelREF[isimREF]
             for iMom in range(nrMom_select):
-                i = iMom_select[iMom]
+                iiMom = iMom_select[iMom]
                 ipr=iMom+iDmean+iSIPplot
-                if (i != 1):
-                    line,=ax_vec[ipr,ipc].plot(t_vecREF[:ntREF_vec[isimREF]],MOMsaveREF[isimREF,i,:ntREF_vec[isimREF]], color=color_tmp, label=label_tmp, linestyle=lsREF)
+                if (iiMom != 1):
+                    line,=ax_vec[ipr,ipc].plot(t_vecREF[:ntREF_vec[isimREF]],MOMsaveREF[isimREF,iiMom,:ntREF_vec[isimREF]], color=color_tmp, label=label_tmp, linestyle=lsREF)
                 else:
                     #GCCif (MOM_NORMmass == 1)
-                    Momtmp=MOMsaveREF[isimREF,i,:ntREF_vec[isimREF]]/MOMsaveREF[isimREF,i,0] # normalise first moment (= mass)
+                    Momtmp=MOMsaveREF[isimREF,iiMom,:ntREF_vec[isimREF]]/MOMsaveREF[isimREF,iiMom,0] # normalise first moment (= mass)
                     #GCCelse
-                    Momtmp=MOMsaveREF[isimREF,i,:ntREF_vec[isimREF]]
+                    Momtmp=MOMsaveREF[isimREF,iiMom,:ntREF_vec[isimREF]]
                     #GCCendif /* (MOM_NORMmass == 1) */
                     line,=ax_vec[ipr,ipc].plot(t_vecREF[:ntREF_vec[isimREF]],Momtmp, color=color_tmp, label=label_tmp, linestyle=lsREF)  #,col_list[ii]+':'
                 print('label_tmp', label_tmp)
@@ -696,11 +731,11 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
                 ipr_leg = 0
                 ipc_leg = 0
                 dummy_lines = []
-                for b_idx, b in enumerate(['-','--', '-.', ':']):  # use linestyles order as in C4L4 cycler
+                for b_idx, b in enumerate(['-','--', '-.',(0, (3, 10, 1, 10)), ':']):  # use linestyles order as in C4L5 cycler
                     dummy_lines.append(ax_vec[ipr_leg,ipc_leg].plot([],[], c="black", ls = b)[0])
-                legend2 = ax_vec[ipr_leg,ipc_leg].legend([dummy_lines[i] for i in range(4)], ["AON WM3D", "AON WM2D", "AON noSedi", "BIN Bott"], loc='upper left',fontsize=fs)
+                legend2 = ax_vec[ipr_leg,ipc_leg].legend([dummy_lines[i] for i in range(5)], ["reg", "WM2D", " nS", "LS", "BIN"], loc='upper left',fontsize=fs,handlelength=4)
                 print('legend2 created', ipr_leg, ipc_leg)
-                #ax_vec[ipr_leg,ipc_leg].add_artist(legend2) nicht notwendig, da diese Legende und die Originallegende in unterschiedlichen Panels erscheinen.
+                #ax_vec[ipr_leg,ipc_leg].add_artist(legend2) this call is not necessary as the additional legend and the original legend are added in different panels.
 
             lc=labelMoments_dict.get('loc','lower left')
             fs=labelMoments_dict.get('fs',6)
@@ -708,25 +743,262 @@ def PlotMoments(MOMsave,t_vec_MOMsave,fp_out='',
             ipr_leg=labelMoments_dict.get('ipr',0)
             ipc_leg=labelMoments_dict.get('ipc',0)
 
+            kwargs = {}
+            #if (iPlotextras == 20):
+                #kwargs = {"bbox_to_anchor": (0.02, 0.2)}
+
             if (leg_ncol == 1):
-                print('labels:', label[:nr_sims+iaddsimREF], ipr_leg, ipc_leg)
-                ax_vec[ipr_leg,ipc_leg].legend(label[:nr_sims+iaddsimREF], fontsize=fs, loc=lc)
+                print('B labels:', label[:nr_sims+iaddsimREF], ipr_leg, ipc_leg)
+                ax_vec[ipr_leg,ipc_leg].legend(label[:nr_sims+iaddsimREF], fontsize=fs, loc=lc,**kwargs)
             else:
                 handles, labels = ax_vec[0,ipc_leg].get_legend_handles_labels()
-                print('handles', handles)
-                print('labels', labels)
+                print('C handles', handles)
+                print('C labels', labels)
                 ax_vec[ipr_leg,ipc_leg].legend(flip(handles,leg_ncol),flip(labels,leg_ncol), fontsize=fs, loc=lc, ncol=leg_ncol)
 
         if (iExtraLegend == 5):
             for ipc in range(3):
                 vert = 0.2 #0.92
-                ax_vec[0,ipc].text(0.96, vert, ["AON WM2D", "AON WM3D", "BIN Bott"][ipc], horizontalalignment='right',verticalalignment='top', transform=ax_vec[0,ipc].transAxes,bbox=dict(facecolor='none',pad=2),fontsize=labelMoments_dict.get('fs',6))
+                ax_vec[0,ipc].text(0.5, vert, ["AON-WM2D", "AON-regular", "BIN"][ipc], horizontalalignment='right',verticalalignment='top', transform=ax_vec[0,ipc].transAxes,bbox=dict(facecolor='none',pad=2),fontsize=labelMoments_dict.get('fs',6))
 
         #GCCendif /* (MOM_Panel2Dsims == 0) */
         plt.savefig(fp_out+'Mom.png', format='png', bbox_inches='tight', dpi=300)
+        plt.savefig(fp_out+'Mom.pdf', format='pdf', bbox_inches='tight', dpi=300)
+
         plt.close()
     print('end of plot function')
 # end function PlotMoments -----------------------------------------------------------------------------------
+
+def PlotMomentsFinal(MOMFinal,fp_out='', skal_m=None):
+    # MOMFinal=np.zeros([nr_sims,nr_Mom])
+
+#GCCif (IREF == 1)
+    #Wang reference data
+    [timeREF, MomentsREF] = REF.defineMoments_0D()
+    MomRefFinal = MomentsREF[-1,:]
+#GCCendif /* (IREF == 1) */
+
+#GCCif (IREF == 9)
+    ntREF_vec=np.zeros(nrsimREF, dtype='int')
+    print('nrsimREF', nrsimREF)
+    MomRefFinal = np.zeros([nrsimREF,4])
+    for isimREF in range(nrsimREF):
+        ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF,rgridREF,mgridREF=REF.get_RefMetaData(isimREF=isimREF)
+        #print('REF meta data', ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF)
+        ntREF_vec[isimREF] = ntREF
+        if (ntREF > ntREFmax):
+            print('increase ntREFmax', ntREF, ntREFmax)
+
+        t_vecREF = TsimREF/(ntREF-1)*np.arange(ntREF)
+
+        MOMtmp = REF.get_RefProfileData(nzREF,ntREF,isimREF=isimREF)  #function output : np.zeros([4,nt,nz])
+        MOMtmp = np.mean(MOMtmp, axis=2)
+
+        nt_time_pick = -1
+        if (iPlotextras == 10):
+            nt_time_pick = [18,18][isimREF]
+        MomRefFinal[isimREF,:] = MOMtmp[:,nt_time_pick]
+#GCCendif /* (IREF == 9) */
+
+    [nr_sims,nr_Mom]=MOMFinal.shape
+    iMom_select = iMom_select_const.copy()
+    nrMom_select= len(iMom_select)
+
+    if (skal_m is not None):
+        for i in range(4):
+            MOMFinal[:,i] = MOMFinal[:,i] / skal_m**i
+
+    str_unit = 'kg'
+    if (skal_m is not None):
+        str_unit = r'$m_e$'
+
+    ylabel_vec = ['$\lambda_0(t=1\:$h) / m$^{-3}$',
+                    '$\lambda_1(t=1\:$h)  / (' + str_unit + ' m$^{-3}$)',
+                    '$\lambda_2(t=1\:$h)  / (' + str_unit + '$^{2}$ m$^{-3}$)',
+                    '$\lambda_3(t=1\:$h)  / (' + str_unit + '$^{3}$ m$^{-3}$)']
+
+    for iMom in iMom_select:
+        if (isavedata_filename is not None):
+            datafile = open(isavedata_filename+'_{0:01}.dat'.format(iMom),'w')
+            datafile.write(titleMAIN+'\n')
+            datafile.write(str(len(iperm)) + '   '+ str(nr_seriestypes)+'\n')
+
+        yfigsize = 4.5
+        xfigsize = 3.0
+        Simcycler_dict  = cycler_dict(1)
+
+        if type(Sim_cycler) is not list:
+            plt.rc('axes', prop_cycle=Simcycler_dict[Sim_cycler])
+            fig = plt.figure(figsize=(xfigsize,yfigsize), dpi=300)
+            ax = fig.subplots(2,1)
+
+        if type(Sim_cycler) is list:
+            fig = plt.figure(figsize=(xfigsize,yfigsize), dpi=300)
+            ax = fig.subplots(2,1)
+            for iii,SC in enumerate(Sim_cycler):
+                ax[iii].set_prop_cycle(Simcycler_dict[SC])
+
+        if (titleMAIN is not None):
+            plt.suptitle(titleMAIN,va='bottom')  #va='bottom'
+
+        for iseries in iperm:
+            ia = iseries_indices[iseries]
+            ie = iseries_indices[iseries+1]
+            nr = ie-ia
+            xgrid = iseries_shift[iseries] + np.arange(nr)
+            line,=ax[iseriestype[iseries]].plot(xgrid,MOMFinal[iseries_indices[iseries]:iseries_indices[iseries+1],iMom],label=text_vec[iseries],marker='*')
+            #get current linestyle and colour!
+            ls_current = line.get_ls()
+            col_current = line.get_c()
+
+            if (isavedata_filename is not None):
+                datafile.write(" ".join("{}".format(x) for x in [iseries,iseriestype[iseries],ls_current,col_current])+'\n')
+                datafile.write(text_vecFILE[iseries]+'\n')
+                datafile.write(" ".join("{}".format(x) for x in xgrid)+'\n')
+                #datafile.write(" ".join("'{}'".format(x) for x in series_vecs[iseriestype[iseries]])+'\n')
+                datafile.write(" ".join("{}".format(x) for x in MOMFinal[iseries_indices[iseries]:iseries_indices[iseries+1],iMom])+'\n')
+
+        for ist in range(nr_seriestypes):
+            #GCCif (IREF == 1)
+            if (isavedata_filename is not None):
+                datafile.write(" ".join("{}".format(x) for x in [ist,'iref1',':','k'])+'\n')
+                datafile.write(" ".join("{}".format(x) for x in [0,len(series_vecs[ist])-1])+'\n')
+                datafile.write(" ".join("{}".format(x) for x in [MomRefFinal[iMom],MomRefFinal[iMom]])+'\n')
+            ax[ist].plot([0,len(series_vecs[ist])-1], [MomRefFinal[iMom],MomRefFinal[iMom]],'k:')
+            #GCCendif /* (IREF == 1) */
+            #GCCif (IREF == 9)
+            if (isavedata_filename is not None):
+                datafile.write(" ".join("{}".format(x) for x in [ist,'iref9',':','k'])+'\n')
+                datafile.write(" ".join("{}".format(x) for x in [0,len(series_vecs[ist])-1])+'\n')
+                datafile.write(" ".join("{}".format(x) for x in [MomRefFinal[ist,iMom],MomRefFinal[ist,iMom]])+'\n')
+            ax[ist].plot([0,len(series_vecs[ist])-1], [MomRefFinal[ist,iMom],MomRefFinal[ist,iMom]],'k:')
+            print('REF value: ', MomRefFinal[ist,iMom])
+            #GCCendif /* (IREF == 9) */
+            if (isavedata_filename is not None):
+                datafile.write(" ".join("{}".format(x) for x in range(len(series_vecsFILE[ist])))+'\n')
+                datafile.write(" ".join("{}".format(x) for x in series_vecsFILE[ist])+'\n')
+            ax[ist].xaxis.set_ticks(np.arange(len(series_vecs[ist])))
+            ax[ist].set_xticklabels(series_vecs[ist])
+
+            ax[ist].semilogy()
+            ax[ist].set_ylabel(ylabel_vec[iMom])
+            if (iMom == 0):
+                ax[ist].set_ylim([1e6,1e8])
+                ax[ist].yaxis.set_ticks([1e6,1e7,1e8])
+
+                if (iPlotextras == 10):
+                    if (ist == 0):
+                        ax[ist].set_ylim([1e2,5e4])
+                        ax[ist].yaxis.set_ticks([1e2,1e3,1e4])
+                    if (ist == 1):
+                        ax[ist].set_ylim([0.7e8,1.5e8])
+                        ax[ist].set_yscale('linear')
+                if (iPlotextras == 11):
+                    ax[ist].set_ylim([1e5,5e7])
+                    ax[ist].yaxis.set_ticks([1e5,1e6,1e7])
+                    if (ist == 0):
+                        ax[ist].text(-0.1,1.8e7,'$dt_\mathrm{Wang}$ in s:',fontsize= 8)
+                        for item,text in enumerate(['10', '10', '10', '2', '1', '0.1']):
+                            ax[ist].text(item,1e7,text,fontsize= 8,ha='center')
+
+            ax[ist].legend(fontsize=6,handlelength=4)
+
+        #change for top row only
+        ax[0].tick_params(axis = 'x', bottom = False, top = True, labelbottom = False, labeltop = True)
+
+        if (isavedata_filename is not None):
+            datafile.close()
+
+        plt.savefig(fp_out+"MomFinal_{0:01}.png".format(iMom), format='png', bbox_inches='tight')
+        plt.savefig(fp_out+"MomFinal_{0:01}.pdf".format(iMom), format='pdf', bbox_inches='tight')
+# end function PlotMomentsFinal -----------------------------------------------------------------------------------
+
+def PlotMomentsTimeCross(TimesCross,fp_out=''):
+    # TimesCross = np.zeros([nr_sims,2,3])
+    [nr_sims,nr_MomTC,nr_thr]=TimesCross.shape
+    print('nr_sims,nr_MomTC,nr_thr',nr_sims,nr_MomTC,nr_thr)
+#GCCif (IREF == 9)
+    ntREF_vec=np.zeros(nrsimREF, dtype='int')
+    print('nrsimREF', nrsimREF)
+    TimesCrossREF= np.zeros([nrsimREF,nr_MomTC,nr_thr])
+    #MOMsaveREF = np.zeros([nrsimREF,4,ntREFmax])
+    for isimREF in range(nrsimREF):
+        ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF,rgridREF,mgridREF=REF.get_RefMetaData(isimREF=isimREF)
+        #print('REF meta data', ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF)
+        ntREF_vec[isimREF] = ntREF
+        if (ntREF > ntREFmax):
+            print('increase ntREFmax', ntREF, ntREFmax)
+
+        t_vecREF = TsimREF/(ntREF-1)*np.arange(ntREF)
+
+        MOMtmp = REF.get_RefProfileData(nzREF,ntREF,isimREF=isimREF)  #function output : np.zeros([4,nt,nz])
+        MOMtmp = np.mean(MOMtmp, axis=2)
+        indices = np.zeros([2,3],dtype='int')
+        iMom = 0
+        iiMom = 0
+        for ithr in range(3):
+            indices[iiMom,ithr] = np.where(MOMtmp[iMom,:].reshape((ntREF)) < thresholds_TimeCross[iiMom,ithr])[0][0]
+        iMom = 2
+        iiMom = 1
+        for ithr in range(3):
+            indices[iiMom,ithr] = np.where(MOMtmp[iMom,:].reshape((ntREF)) > thresholds_TimeCross[iiMom,ithr])[0][0]
+        TimesCrossREF[isimREF,:,:]=t_vecREF[indices]
+        print(isimREF,t_vecREF[indices])
+#GCCendif /* (IREF == 9) */
+
+    for iiMom in range(nr_MomTC):
+        yfigsize = 3.0
+        xfigsize = 3.5
+        Simcycler_dict  = cycler_dict(1)
+        plt.rc('axes', prop_cycle=Simcycler_dict[Sim_cycler])
+        for ithr in range(3):
+            fig = plt.figure(figsize=(xfigsize,yfigsize), dpi=300)
+            ax = fig.subplots(1,1)
+            for iseries in range(nr_sims//4):
+                ia = iseries*4
+                ie = iseries*4 + 4
+                nr = ie-ia
+                xgrid = np.arange(nr)
+                label_text = None
+                if (iseries < 4):
+                    label_text = text_vec[iseries]
+                ax.plot(xgrid,TimesCross[ia:ie,iiMom,ithr]/60,label=label_text)
+                if (iseries % 4 == 3):
+                    iseriesREF = iseries//4
+                    ia = iseriesREF*4
+                    ie = iseriesREF*4 + 4
+                    nr = ie-ia
+                    xgrid = np.arange(nr)
+                    label_text = None
+                    if (iseriesREF == 0):
+                        label_text = text_vec[4]
+                    ax.plot(xgrid,TimesCrossREF[ia:ie,iiMom,ithr]/60,label=label_text)
+
+            ax.xaxis.set_ticks(xgrid)
+            ax.set_xticklabels(xticks_vec)
+            ax.set_ylabel('$T_\mathrm{cross}$ / min')
+            legend_save = ax.legend(fontsize=6,loc='upper left')
+
+            if (iPlotextras == 11):
+                # Extra text lower left corner
+                ax.text(-0.03, -0.04, 'LWCvar\nDNCvar', horizontalalignment='right',verticalalignment='top', transform=ax.transAxes) #fontsize=6
+                # add extra legend for line styles
+
+                lc = 'upper center'
+                fs = 6
+                dummy_lines = []
+                for b_idx, b in enumerate(['-','--', ':']):  # use linestyles order as in C5L3 cycler
+                    dummy_lines.append(ax.plot([],[], c="black", ls = b)[0])
+                legend2 = ax.legend([dummy_lines[i] for i in range(3)], ["DNCvar @ LWC$_\mathrm{init}$ fix", "LWCvar @ DNC$_\mathrm{init}$ fix", "LWCvar @ $r_\mathrm{init}$ fix"], loc='lower left',fontsize=fs)
+                print('legend2 created')
+                ax.add_artist(legend_save)
+
+            iMom=[0, 2][iiMom]
+            filename = fp_out+"Tcross_Moment{0:01}_iTresh{1:01}".format(iMom,ithr)
+            plt.savefig(filename+".png", format='png', bbox_inches='tight')
+            plt.savefig(filename+".pdf", format='pdf', bbox_inches='tight')
+# end function PlotMomentsTimeCross -----------------------------------------------------------------------------------
+
 
 def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iMultipleSims=0, nr_inst_vec=None, label=[None], title=None, ilastGVonly=None, iTimes_select=None, V=None, outfallingGV=0, skal_m=None):
 
@@ -745,18 +1017,18 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
 #GCCif (IREF == 1)
     if (outfallingGV == 0):
         #reference solution given every 600s
-        rgridREF,SizeDistrREF,nbinREF = REF.read_GVdata_Wang()
+        rgridREF,SizeDistrREF,nbinREF = REF.read_SDdata_Wang()
 #GCCendif /* (IREF == 1) */
 
     if (iMultipleSims == 0):
-        nEK_sip_plot = np.expand_dims(nEK_sip_plot, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        nr_SIPs_plot = np.expand_dims(nr_SIPs_plot, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        nEK_sip_plot = np.expand_dims(nEK_sip_plot, axis=0) # add a dummy first dimension with length 1
+        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=0) # add a dummy first dimension with length 1
+        nr_SIPs_plot = np.expand_dims(nr_SIPs_plot, axis=0) # add a dummy first dimension with length 1
 
     if (outfallingGV >= 1):
-        nEK_sip_plot = np.expand_dims(nEK_sip_plot, axis=2) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=2) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        nr_SIPs_plot = np.expand_dims(nr_SIPs_plot, axis=2) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        nEK_sip_plot = np.expand_dims(nEK_sip_plot, axis=2) # add a dummy first dimension with length 1
+        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=2) # add a dummy first dimension with length 1
+        nr_SIPs_plot = np.expand_dims(nr_SIPs_plot, axis=2) # add a dummy first dimension with length 1
 
     [nr_sims,nr_inst,nr_GVplot,nr_SIPs]= nEK_sip_plot.shape
 
@@ -794,12 +1066,12 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
 
     print('iGV_select', iGV_select)
 
-    skal_g = 1e3  # Im Standardfall Umrechung von kg/m3 auf g/cm3
+    skal_g = 1e3  # in the default case, convert from kg/m3 to g/cm3
     if (outfallingGV >= 1):
-        ytitle_select = '$g_{ln r}$ / (g / cm$^2$)'
+        ytitle_select = '$g_{\mathrm{ln} r}$ / (g / cm$^2$)'
         ylimGV_select = (1e-1,5e1)
         xlimGV_select = (.8e2,2e3)
-        skal_g = 1e1 # Umrechung von kg/m2 auf g/cm2
+        skal_g = 1e1 # convert from kg/m2 to g/cm2
     else:
         ytitle_select = ytitle
         ylimGV_select = ylimGV
@@ -819,8 +1091,7 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
             custom_cycler = ( Simcycler_dict[Sim_cycler] )
         else:
             custom_cycler = ( Timecycler_dict[Time_cycler] * Simcycler_dict[Sim_cycler] )
-
-    plt.rc('axes', prop_cycle=custom_cycler) #dieser Aufruf inkl der vorangegangenen Definition des Cyclers muss vor plt.figure kommen!
+    plt.rc('axes', prop_cycle=custom_cycler)  #this call together with preceding cycler definition must be placed before plt.figure call!
 
     plt.figure(figsize=(4,3), dpi=500)
     #fig, ax = plt.subplots(111)
@@ -855,15 +1126,14 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
 
                     m1D_ins_mean = m1D_ins_mean + mEK_bin_plot * nEK_bin_plot
                     g1D_ins_mean = g1D_ins_mean + nEK_bin_plot
-            # Aufsummieren ueber Instanzen fertig
+            # adding up all realisations is finished
 
             m1D_ins_mean = m1D_ins_mean / g1D_ins_mean
-                # gewichtetes Mittel: wuerde man bei m1d analog zu g1D verfahren gaebe es Probleme, weil Bins, die nur von manchen Instanzen belegt sind, keine vernuenftige mittlere Masse liefern wuerden.
-                # bei unbelegten Bins wird nun durch 0 dividiert -> parktischerweise sorgen die nan-values in m1D fuer einen GV-Plot mit Luecken, so wie gewuenscht.
-            g1D_ins_mean = g1D_ins_mean / (nr_inst * V[i_sim])  # Einheit kg / m^3 bzw. kg / m^2
-            #Mittelung ueber alle Instanzen abgeschlossen
-            g1D_ins_mean=3*g1D_ins_mean*(m1D_ins_mean**2)*skal_g # Umrechnung in Einheit g / cm^3 bzw. g / cm^2
-            m1D_ins_mean=FK.m2r(m1D_ins_mean,const_mass2rad)*1e6 # Umrechnung in Radius in um
+                # weighted mean: wuerde man bei m1d analog zu g1D verfahren gaebe es Probleme, weil Bins, die nur von manchen Instanzen belegt sind, keine vernuenftige mittlere Masse liefern wuerden.
+                # bei unbelegten Bins wird nun durch 0 dividiert -> praktischerweise sorgen die nan-values in m1D fuer einen GV-Plot mit Luecken, so wie gewuenscht.
+            g1D_ins_mean = g1D_ins_mean / (nr_inst * V[i_sim])  # units kg / m^3 or kg / m^2
+            g1D_ins_mean=3*g1D_ins_mean*(m1D_ins_mean**2)*skal_g # convert to units g / cm^3 or g / cm^2
+            m1D_ins_mean=FK.m2r(m1D_ins_mean,const_mass2rad)*1e6 # convert radius in um
             if (i_sim >= len(label)):
                 label_tmp = None
             else:
@@ -899,19 +1169,19 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
         plt.gca().set_prop_cycle(custom_cycler)
         for i_plot in iGV_select:
             #GCCif (IREF == 9)
-            plt.plot(rgridREF*1e6, SizeDistrREF[i_plot,:]*1e3,color='k',marker='',label='Bin')
+            plt.plot(rgridREF*1e6, SizeDistrREF[i_plot,:]*1e3,color='k',marker='',label='BIN')
             #print(min(rgridREF*1e6),max(rgridREF*1e6),SizeDistrREF[i_plot,:].min(),SizeDistrREF[i_plot,:].max())
             #GCCendif /* (IREF == 9) */
             #GCCif (IREF == 1)
             indREF= int(i_plot/3)
             #print(indREF,i_plot)
-            plt.plot(rgridREF[indREF,:nbinREF[indREF]]*1e3,SizeDistrREF[indREF,:nbinREF[indREF]],color='k',marker='',label='Bin')
+            plt.plot(rgridREF[indREF,:nbinREF[indREF]]*1e3,SizeDistrREF[indREF,:nbinREF[indREF]],color='k',marker='',label='BIN')
             #GCCendif /* (IREF == 1) */
     #GCCendif  /* (IREF == 9 || IREF == 1) */
 
     #GCCif (IREF == 2)
     if (outfallingGV == 0):
-        REF.PlotGV_0D()
+        REF.PlotSD_0D()
     #GCCendif /* (IREF == 2) */
 
     if (title is not None): plt.title(title)
@@ -934,22 +1204,27 @@ def PlotGV(nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot, fp_out='', iM
 
     if iTimes_select is None:
         plt.savefig(fp_out+'SD'+suffix+'.png', format='png', bbox_inches='tight')
+        plt.savefig(fp_out+'SD'+suffix+'.pdf', format='pdf', bbox_inches='tight')
     else:
         list_of_str = ["{0:04}".format(i) for i in iTimes_select]
         #print('list_of_str',list_of_str)
         plt.savefig(fp_out+'SD'+suffix+ '_'.join(list_of_str)+'.png', format='png', bbox_inches='tight')
+        plt.savefig(fp_out+'SD'+suffix+ '_'.join(list_of_str)+'.pdf', format='pdf', bbox_inches='tight')
+
     plt.close(1)
 # end function PlotGV  -----------------------------------------------------------------------------------
 
 def PlotRelStdDev(mEK_sip_plot, t_vec_GVplot,iMultipleSims=0,fp_out='',nr_inst_vec=None,label=None,title=None,ilastGVonly=None):
-# Erstelle RStD-Plot und optional zusaetzlich 1. Histogram der groessten SIP Massen und 2. mittlere Massen des groessten und zweitgroessten Teilchens
+# Generate RStD-Plot.
+# Optinoally, additional plots are generated:
+# 1. histogram of mass of largest SIP
+# 2. mean masses of largest and second largest SIP
 
     ihistogram = 0 # 0 oder 1
     imaxelement = 1 # 0 oder 1
 
     if (iMultipleSims == 0):
-        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-
+        mEK_sip_plot = np.expand_dims(mEK_sip_plot, axis=0) # add a dummy first dimension with length 1
     [nr_sims,nr_inst,nr_GVplot,nr_SIPs]= mEK_sip_plot.shape
 
     if (nr_inst_vec is None): nr_inst_vec=np.array([nr_inst])
@@ -965,7 +1240,6 @@ def PlotRelStdDev(mEK_sip_plot, t_vec_GVplot,iMultipleSims=0,fp_out='',nr_inst_v
     print(Simcycler_dict)
     plt.rc('axes', prop_cycle=Simcycler_dict[Sim_cycler])
 
-    #plt.rc('axes', prop_cycle=cycl_col_reg) #dieser Aufruf inkl der vorangegangenen Definition des Cyclers muss vor plt.figure kommen!
     fig0 = plt.figure(figsize=(4,6), dpi=300)
     ax_vec = fig0.subplots(1+ihistogram+imaxelement,1)
     if ((ihistogram == 0) and  (imaxelement == 0)):
@@ -1032,6 +1306,7 @@ def PlotRelStdDev(mEK_sip_plot, t_vec_GVplot,iMultipleSims=0,fp_out='',nr_inst_v
 #!GCCendif /* (IREF == 2) */
 
     plt.savefig(fp_out+'Hist_max_mass.png', format='png', bbox_inches='tight')
+    plt.savefig(fp_out+'Hist_max_mass.pdf', format='pdf', bbox_inches='tight')
     plt.close(1)
 # end function PlotRelStdDev  -----------------------------------------------------------------------------------
 
@@ -1044,18 +1319,19 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
                     iSIPplot=0, nr_SIPs_prof_mean=None, t_vec_GVplot=None, ntGV_vec=None
                     ):
     #print('iTimes_select', iTimes_select)
-    #Plotte profiles of moments
+    #Plot profiles of moments at given times
     dz_plot = 100
-    iyscal_km = 1  # =0 verwende Einheit m, =1 verwende Einheit km auf y-Achse
-    #MOMsave enthaelt die Momente aller Instanzen (iMean=0)
-    #MOMsave enthaelt die gemittelten Momente (iMean=1)
-    #fp_out: Ausgabepfad des Plots
-    #iplot_onlyMOMmean: 0 plotte alle Instanzen; =1 plotte nur Mittel
-    #dz ist definiert in "params.txt", nicht aber in "params_plot.txt" => bei ICOMPPLOT = 2 muss dz uebergeben werden
+    iyscal_km = 1  # =0 yscale uses unit m, =1 yscale uses unit km
+   #MOMsave contains moment data, separately for each realisation (iMean=0)
+    #MOMsave contains moment data, average over all realisations (iMean=1)
+    #iplot_onlyMOMmean: 0 plot each realisation separately; =1 plot only ensemble average
+    #dz is only defined "params.txt", not in "params_plot.txt" => if ICOMPPLOT = 2, then dz must be provided as an argument
     iaddsim1DREF=0
 #GCCif (IREF == 9)
     ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF,rgridREF,mgridREF=REF.get_RefMetaData()
-    #print('REF meta data', ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF)
+    print('REF meta data', ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF)
+    if (TsimREF == 3601) or (TsimREF == 7201):
+        TsimREF = TsimREF - 1
     t_vecREF=TsimREF/(ntREF-1)*np.arange(ntREF)
     IndexTimeDictREF={t_vecREF[i]: i for i in range(ntREF)}
     if (iyscal_km == 0):
@@ -1076,9 +1352,9 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
 #GCCendif /* (IREF == 9) */
 
     if (iMultipleSims == 0):
-        MOMsave = np.expand_dims(MOMsave, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        MOMsave = np.expand_dims(MOMsave, axis=0) # add a dummy first dimension with length 1
         nt_vec = np.array([t_vec_MOMsave.size],dtype='int')
-        t_vec_MOMsave = np.expand_dims(t_vec_MOMsave, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        t_vec_MOMsave = np.expand_dims(t_vec_MOMsave, axis=0) # add a dummy first dimension with length 1
 
     if (iMean == 1):
         MOMmean=MOMsave.copy()
@@ -1102,7 +1378,7 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
                 MOMprof_StdDev = np.expand_dims(MOMprof_StdDev, axis=0)
             if (iplotStdDev == 2):
                 print("Compute 10, 90 percentile")
-                MOMprof_StdDev = np.abs(np.percentile(MOMsave, [10,90], axis=1)-MOMmean)# als positive deviation von Mittelwert angeben
+                MOMprof_StdDev = np.abs(np.percentile(MOMsave, [10,90], axis=1)-MOMmean) # given as positive deviations from the mean value
 
     if (iMultipleSims == 1):
         if (nz_vec      is None): print('Multiple Sims, but no nz_vec      provided. Assume nz_vec      =',nz       ,' for all sims')
@@ -1137,16 +1413,19 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
     labelwithBin=label
     #GCCif (IREF == 9)
     iind_REF=[IndexTimeDictREF.get(Time) for Time in iTimes_select ]
-    labelwithBin=label+['Bin']
+    labelwithBin=label+['BIN']
     print('labelwithBin',labelwithBin)
+    print('iTimes_select: ', iTimes_select)
+    print(IndexTimeDictREF, 'BBB', IndexTimeDict)
+    print(iind_REF,'AAA',iind_select)
     #GCCendif /* (IREF == 9) */
 
     #GCCif (addSIPplot > 0)
     if (iSIPplot == 1):
         if (iMultipleSims == 0):
-            nr_SIPs_prof_mean = np.expand_dims(nr_SIPs_prof_mean, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+            nr_SIPs_prof_mean = np.expand_dims(nr_SIPs_prof_mean, axis=0) # add a dummy first dimension with length 1
             ntGV_vec = np.array([t_vec_GVplot.size],dtype='int')
-            t_vec_GVplot = np.expand_dims(t_vec_GVplot, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+            t_vec_GVplot = np.expand_dims(t_vec_GVplot, axis=0) # add a dummy first dimension with length 1
 
         iindGV_select=np.zeros([nr_sims,nrTimes_select],dtype='int')
         for i_sim in range(0,nr_sims):
@@ -1178,10 +1457,10 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
                 '$\lambda_1$ / (kg m$^{-3}$)',
                 '$\lambda_2$ / (kg$^{2}$ m$^{-3}$)',
                 '$\lambda_3$ / (kg$^{3}$ m$^{-3}$)',
-                '$D_{mean}$ / $\mu$m',
-                '$N_{SIPs}$ / 100m']
+                '$D_\mathrm{mean}$ / $\mu$m',
+                '$N_\mathrm{SIPs}$ / 100m']
     #GCCif (addSIPplot == 2)
-    xlabel_vec[5]='$N_{SIP,GB}$'
+    xlabel_vec[5]='$N_\mathrm{SIP,GB}$'
     #GCCendif /* (addSIPplot == 2) */
     print('iMom_select_const before',iMom_select_const)
     if iMom_select_const is None:
@@ -1418,9 +1697,9 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
             ax_vec[0,ip].get_yaxis().set_ticklabels([]) # supress y-axis tick labels in all but the left most plot
         else:
             if (iyscal_km == 0):
-                ax_vec[0,ip].set_ylabel('dz / m')
+                ax_vec[0,ip].set_ylabel('$z$ / m')
             else:
-                ax_vec[0,ip].set_ylabel('dz / km')
+                ax_vec[0,ip].set_ylabel('$z$ / km')
 
 
         if (iMom == 4):
@@ -1499,7 +1778,7 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
                         dummy_lines.append(ax_vec[0,ipc_leg].plot([],[], c="black", ls = b)[0])
                     legend2 = ax_vec[0,ipc_leg].legend([dummy_lines[i] for i in range(5)], ["0", "10", "20", "30", "60"], title="time / min", loc='upper left',fontsize=fs,handlelength = 5)
                     print('legend2 created', ipr_leg, ipc_leg)
-                #ax_vec[0,ipc_leg].add_artist(legend2) nicht notwendig, da diese Legende und die Originallegende in unterschiedlichen Panels erscheinen.
+                    #ax_vec[ipr_leg,ipc_leg].add_artist(legend2) this call is not necessary as the additional legend and the original legend are added in different panels.
 
                 print('legend iMom,iiMom', iMom, iiMom)
                 lc=labelMoments_dict.get('loc','lower right')
@@ -1519,14 +1798,17 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
                         ha=text[3]
                     ax_vec[0,ip].text(text[1],text[2], text[0], horizontalalignment=ha,verticalalignment='top', transform=ax_vec[0,ip].transAxes,bbox=dict(facecolor='none',pad=2),fontsize=6)
 
+        if (title is not None): plt.suptitle(title)
         #GCCif (Prof_Panel == 0)
         if iTimes_select is None:
-            plt.savefig(fp_out+'ProfMom'+ str(iMom) + '.png', format='png', bbox_inches='tight',dpi=300)
+            plt.savefig(fp_out+'ProfMom'+ str(iMom) + '.png', format='png', bbox_inches='tight',dpi=600)
+            plt.savefig(fp_out+'ProfMom'+ str(iMom) + '.pdf', format='pdf', bbox_inches='tight',dpi=600)
             plt.close()
         else:
             list_of_str = ["{0:04}".format(i) for i in iTimes_select]
             #print('list_of_str',list_of_str)
             plt.savefig(fp_out+'ProfMom'+ str(iMom) + '_t' + '_'.join(list_of_str)+'.png', format='png', bbox_inches='tight')
+            plt.savefig(fp_out+'ProfMom'+ str(iMom) + '_t' + '_'.join(list_of_str)+'.pdf', format='pdf', bbox_inches='tight')
             plt.close()
         #GCCendif /* (Prof_Panel == 0) */
 
@@ -1534,15 +1816,15 @@ def PlotMomentsProf(MOMsave, t_vec_MOMsave, fp_out='', iMultipleSims=0, iMean=0,
     list_of_strMOM = ["{0:01}".format(i) for i in iMom_select]
     if iTimes_select is None:
         plt.savefig(fp_out+'ProfMom'+ '_'.join(list_of_strMOM) + '.png', format='png', bbox_inches='tight',dpi=300)
+        plt.savefig(fp_out+'ProfMom'+ '_'.join(list_of_strMOM) + '.pdf', format='pdf', bbox_inches='tight',dpi=300)
         plt.close()
     else:
         list_of_str = ["{0:04}".format(i) for i in iTimes_select]
         #print('list_of_str',list_of_str)
         plt.savefig(fp_out+'ProfMom'+ '_'.join(list_of_strMOM) + '_t' + '_'.join(list_of_str)+'.png', format='png', bbox_inches='tight')
+        plt.savefig(fp_out+'ProfMom'+ '_'.join(list_of_strMOM) + '_t' + '_'.join(list_of_str)+'.pdf', format='pdf', bbox_inches='tight')
         plt.close()
     #GCCendif /* (Prof_Panel == 1) */
-
-
 
 # >>>>>>>>>>>>>>>>>>>> end function PlotMomentsProf >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -1634,12 +1916,12 @@ def PlotFluxesTime(FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec,fp_out=''
 #GCCendif /* (ICOMPPLOT == 1 && INFLUX_TOP = 0) */
 
     if (iMultipleSims == 0):
-        FluxIn     = np.expand_dims(FluxIn    , axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        FluxOut    = np.expand_dims(FluxOut   , axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        FluxInAcc  = np.expand_dims(FluxInAcc , axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
-        FluxOutAcc = np.expand_dims(FluxOutAcc, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        FluxIn     = np.expand_dims(FluxIn    , axis=0) # add a dummy first dimension with length 1
+        FluxOut    = np.expand_dims(FluxOut   , axis=0) # add a dummy first dimension with length 1
+        FluxInAcc  = np.expand_dims(FluxInAcc , axis=0) # add a dummy first dimension with length 1
+        FluxOutAcc = np.expand_dims(FluxOutAcc, axis=0) # add a dummy first dimension with length 1
         nt_vec = np.array([t_vec.size],dtype='int')
-        t_vec = np.expand_dims(t_vec, axis=0) # fuege als 1.Dimension Dimension mit Laenge 1 ein
+        t_vec = np.expand_dims(t_vec, axis=0) # add a dummy first dimension with length 1
 
     if (iMultipleSims == 1):
         if (nt_vec is None): print('provide nt_vec, when iMultipleSims = 1')
@@ -1685,7 +1967,7 @@ def PlotFluxesTime(FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec,fp_out=''
 
     print('skip_inflow, io_sep', skip_inflow, io_sep)
     #plt.set_cmap('Reds')
-    ylabel_vec=['$\lambda_0$','$\lambda_1$','$\lambda_2$','$\lambda_3$','$N_{SIP}$']
+    ylabel_vec=['$\lambda_0$','$\lambda_1$','$\lambda_2$','$\lambda_3$','$N_\mathrm{SIP}$']
     if (skip_inflow == 0):
         print('Here nr_MOMs nr_sims', nr_MOMs, nr_sims)
         fig, ax = plt.subplots(nrMom_select, 2, sharex=True,figsize=(8,8*(nrMom_select/5.)**0.8), dpi=600) #,sharey=True
@@ -1770,6 +2052,7 @@ def PlotFluxesTime(FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec,fp_out=''
         plt.tight_layout()
         strInOut=['','IN']
         plt.savefig(fp_out+'Fluxes'+strInOut[io_sep]+'.png', format='png', bbox_inches='tight',dpi=600)
+        plt.savefig(fp_out+'Fluxes'+strInOut[io_sep]+'.pdf', format='pdf', bbox_inches='tight',dpi=600)
 
     if (io_sep == 1):
         fig, ax = plt.subplots(nrMom_select, 2, sharex=True,figsize=(8,8*(nrMom_select/5.)**0.8), dpi=600) #,sharey=True
@@ -1818,7 +2101,7 @@ def PlotFluxesTime(FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec,fp_out=''
 
         plt.tight_layout()
         plt.savefig(fp_out+'FluxesOUT.png', format='png', bbox_inches='tight',dpi=600)
-
+        plt.savefig(fp_out+'FluxesOUT.pdf', format='pdf', bbox_inches='tight',dpi=600)
 #>>>>>>>>>>>>>>>>> end function PlotFluxesTime >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 #GCCendif /* (FLUX_time == 1) */
 
@@ -1874,11 +2157,19 @@ def cycler_dict(n, nfull = 0):
     ls_vec = ['-', ':','--', '-.',(0, (3, 10, 1, 10))]
     ls3 = ['-','--', ':'] # the last style is dotted (for bin model)
     ls4 = ['-','--', '-.', ':'] # the last style is dotted (for bin model)
+    ls5 = ['-','--', '-.', (0, (3, 10, 1, 10)), ':'] # the last style is dotted (for bin model)
     #take colors from https://matplotlib.org/examples/color/named_colors.html
     col_vec_reg=['b','g','r','c','m','y','grey', 'orange','olive','skyblue']
     col_vec_reg3=['b','r','g','c','m','y','grey', 'orange','olive','skyblue']
     col_vec_reg2=['olive','b','g','r','c','m','y','grey', 'orange','skyblue']
-    col_vec_reg4 = ['orange','lime','skyblue']
+    col_vec_reg4 = ['orange', 'lime', 'skyblue', 'grey']
+    col_vec_reg5 = ['orange', 'skyblue', 'grey']
+    col_vec_reg6 = ['lime', 'grey']
+    col_vec_reg7 = ['orange', 'lime', 'skyblue', 'brown']
+    col_vec_reg8 = ['grey','lime','purple','orange','k' ]
+    col_vec_reg9 = ['grey','lime','orange','k' ]
+    col_vec_reg1 = ['grey','lime','k' ]
+
     col_vec_v1=[plt.cm.cool(i) for i in np.linspace(0, 1, 7)]
     marker_vec=list('.sp*+xov^<>1234,')
     if (nfull == 0):
@@ -1924,22 +2215,40 @@ def cycler_dict(n, nfull = 0):
                     'Marker'   : cycler(marker=marker_vec[:n]),
                     'ColorReg' : cycler(color=col_vec_reg[:n]),
                     'ColorReg4' : cycler(color=col_vec_reg4[:n]),
+                    'ColorReg7' : cycler(color=col_vec_reg7[:n]),
+                    'ColorReg9' : cycler(color=col_vec_reg9[:n]),
                     'Color_brg' : cycler(color=col_vec_reg3[:n]),
                     'ColorBrew': cycler(color=col_vec_cbrew[:n]),
                     'ColRegP1' : cycler(color=col_vec_reg2[:n]),
                     'ColorV1'  : cycler(color=col_vec_v1[:n]),
                     'C3M3'     : cycler(color=col_vec_reg[:3])*cycler(marker=marker_vec[:3]),
                     'C2M2'     : cycler(color=col_vec_reg[:2])*cycler(marker=marker_vec[:2]),
+                    'C2L2'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg4[:2]),
                     'C3L2'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg4[:3]),
+                    'C3L2n'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg9[:3]),
+                    'L2C3'     : cycler(color=col_vec_reg5[:3])*cycler(linestyle=ls_vec[:2]),
+                    'L2C3n'     : cycler(color=col_vec_reg9[:3])*cycler(linestyle=ls_vec[:2]),
+                    'L2C2'     : cycler(color=col_vec_reg6)*cycler(linestyle=ls_vec[:2]),
                     'C4L2'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg[:4]),
+                    'C4L2new'  : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg7[:4]),
                     'C4L3'     : cycler(linestyle=ls3)*cycler(color=col_vec_reg[:4]),
                     'C4L4'     : cycler(linestyle=ls4)*cycler(color=col_vec_reg[:4]),
+                    'C4L5'     : cycler(linestyle=ls5)*cycler(color=col_vec_reg[:4]),
+                    'C5L3'     : cycler(linestyle=ls3)*cycler(color=col_vec_reg8[:5]),
+                    'C5L5'     : cycler(linestyle=ls5)*cycler(color=col_vec_reg[:5]),
                     'C6L2'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg[:6]),
                     'C7L2'     : cycler(linestyle=ls_vec[:2])*cycler(color=col_vec_reg[:7]),
+                    'L4C3'     : cycler(color=col_vec_reg1[:3])*cycler(linestyle=ls_vec[:4]),
                     'custom1'     : cycler(color=['b','b','b','g','k'])+cycler(linestyle=['-', ':','--','-','-']),
                     'custom1_v2'  : cycler(color=['b','b','b','r','k'])+cycler(linestyle=['-', ':','--','-','-']),
                     'custom1_v3'  : cycler(color=['orange','orange','orange','lime','k'])+cycler(linestyle=['-', ':','--','-','-']),
-                    'custom2'     : cycler(color=['k','k', 'orange','orange','orange', 'lime','lime','lime'])+cycler(linestyle=['-', ':','-', ':','--','-', ':','--'])
+                    'custom2'     : cycler(color=['k','k', 'orange','orange','orange', 'lime','lime','lime'])+cycler(linestyle=['-', ':','-', ':','--','-', ':','--']),
+                    'custom3'  : cycler(color=['grey','orange'])
+                    ,
+                    'custom3rev'  : cycler(color=['lime','grey']),
+                    'G_Gd_O_L'    : cycler(color=['grey','grey','orange','lime'])+cycler(linestyle=['-', ':','-','-']),
+                    'G_L_Ld_O_Od': cycler(color=['grey','lime','lime','orange','orange'])+cycler(linestyle=['-','-',':','-',':']),
+                    'blacksoliddash': cycler(color=['k','k'])+cycler(linestyle=['-', '--'])
                     }
 
     return cycler_dict

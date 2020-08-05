@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+########################################################################
+#
+# implementation of AON algorithm for collisional growth of hydrometeors.
+# can be employed in a box model or column model
+# various variants of the algorithm are covered here (LinSamp, explicit overtakes)
+#
+########################################################################
 
 #Python modules
 import os, sys
@@ -15,10 +22,10 @@ import AON_Alg as AON
 import Misc as FK
 #GCCif (KERNEL == 1 || KERNEL == 2)
 import Kernel as K
-#GCCendif /* (KERNEL == 1 || KERNEL == 2) */ 
+#GCCendif /* (KERNEL == 1 || KERNEL == 2) */
 
 #Sedimentation module
-#GCCif (COLUMN == 1 && PROCESS != 2) 
+#GCCif (COLUMN == 1 && PROCESS != 2)
 import Sedimentation as SD
 #GCCendif /* (COLUMN == 1 && PROCESS != 2) */
 
@@ -26,7 +33,7 @@ import Sedimentation as SD
 import PlotSim as PS
 
 #GCCif (WELLMIXED > 0)
-    #GCCif (PROCESS != 0) 
+    #GCCif (PROCESS != 0)
 print('if 2D-WELLMIXED approach is chosen, Sedimentation and Aggregation must be both activated (PROCESS = 0)')
 sys.exit('STOPPED')
     #GCCendif  /* (PROCESS != 0) */
@@ -48,20 +55,20 @@ warnings.filterwarnings("ignore",category =RuntimeWarning)
 
 dV_skal = 1
 nr_SIPs_skal = 1
+
 #the following statement includes a parameter file via a preprocessor directive
 #GCCinclude "params.txt"
-
 
 #>>>>>>>>>> derived parameters >>>>>>>>>>>>>>>>>>>>
 
 #GCCif (INITV == 1)
-    #Anfangs-GV
+    #initial size distribution
         #Mean mass in kg
 xf0=FK.r2m(r0,const_mass2rad)
-        #Anfangskonzentration in 1/m**3
-        #N0=239*(10**6)
+        #initial concentration in m^-3
+        #N0=239e6
 N0=LWC/xf0
-        #Binanzahl
+        #number of bins
 n=n10*r10
 #GCCendif /* (INITV == 1) */
 
@@ -77,7 +84,7 @@ i_process = 2
     #GCCendif /* (PROCESS == 2) */
 #GCCendif /* (COLUMN == 1) */
 
-    #Gesamtanzahl der Zeitschritte
+    #total number of time steps
 iend=int(Tsim/dt) + 1
 #<<<<<<<<<<< derived parameters <<<<<<<<<<<<<<<<<<<<<
 
@@ -105,7 +112,6 @@ m_low=m_kernel[0]
 ikernel=2
 [cck,m_kernel]=K.HallKernel(rho_w)
 eta_indize=m_kernel[1]/m_kernel[0]
-#m_low=m_kernel[0]/eta_indize
 m_low=m_kernel[0]
 #GCCendif /* (KERNEL == 2) */
 
@@ -119,11 +125,8 @@ fLog_currColls= open('log_currColls.dat','w')
 fLog_accColls = open('log_accColls.dat','w')
 fLog_Combs = open('log_Combs.dat','w')
 fLog_p = open('log_p.dat','w')
-#fLog_currColls.close()
-#fLog_accColls.close()
     ##GCCif (WELLMIXED > 0)
 fLog_currColls_WM2D= open('log_currColls_WM2D.dat','w')
-#fLog_currColls_WM2D.close()
     ##GCCendif /* (WELLMIXED > 0)*/
 #GCCendif  /* (COUNT_COLLS == 1) */
 
@@ -133,7 +136,7 @@ fLog_currColls_WM2D= open('log_currColls_WM2D.dat','w')
 nz = 1
 
 #GCCif (DISCRETE == 0)
-#Definition des Bin-Gitters fuer GV-Plots
+# definition of bin grid for size distribution plots
 mfix_plot=np.zeros(nplot)
 mdelta_plot=np.zeros(nplot)
 for i in range(0,nplot-1):
@@ -141,12 +144,14 @@ for i in range(0,nplot-1):
     mdelta_plot[i]=mfix_plot[i+1]-mfix_plot[i]
 #GCCendif /* (DISCRETE == 0) */
 
-imod_GVplot=int(t_intervall_GVplot/dt)
+imod_GVplot = int(t_intervall_GVplot/dt)
 nr_GVplot = int(1 + (Tsim-t_start_GVplot)/t_intervall_GVplot)
 t_end_GVplot = t_start_GVplot + (nr_GVplot-1)*t_intervall_GVplot
-t_vec_GVplot=np.arange(t_start_GVplot,t_end_GVplot+1,t_intervall_GVplot) #Zeitpunkte an denen geplottet wird
-    #Matrix: speichert SIP-Daten aller Instanzen zu den GVPlot-Zeitpunkten
+t_vec_GVplot = np.arange(t_start_GVplot,t_end_GVplot+1,t_intervall_GVplot) #times at which SIP data is saved and size distributions can be plotted
+
 nEK_sip_plot=np.zeros([nr_inst,nr_GVplot,nr_sip_max])
+    #stores SIP data of all realisations at the times defined in t_vec_GVplot
+
 #GCCif (DISCRETE == 0)
 mEK_sip_plot=np.zeros([nr_inst,nr_GVplot,nr_sip_max])
 #GCCendif /* (DISCRETE == 0) */
@@ -158,15 +163,14 @@ nr_SIPs_plot=np.zeros([nr_inst,nr_GVplot],dtype='int')
 imod_MOMsave=int(t_intervall_MOMsave/dt)
 nr_MOMsave = int(1 + (Tsim-t_start_MOMsave)/t_intervall_MOMsave)
 t_end_MOMsave = t_start_MOMsave + (nr_MOMsave-1)*t_intervall_MOMsave
-t_vec_MOMsave=np.arange(t_start_MOMsave,t_end_MOMsave+1,t_intervall_MOMsave) 
+t_vec_MOMsave=np.arange(t_start_MOMsave,t_end_MOMsave+1,t_intervall_MOMsave)
+    #usually a finer time grid is used for saving the moment data
 
 print(t_vec_MOMsave)
 print(nr_MOMsave)
 
-nr_MOMs=4  # notiere Momente 1 bis 3
+nr_MOMs=4  # evaluate moments of order 0 to nr_MOMs-1
 MOMsave=np.zeros([nr_inst,nr_MOMsave,nr_MOMs])
-
-
 
 #GCCif (DISCRETE == 0)
 outp_format='%1.6e'
@@ -189,14 +193,14 @@ fLog.write(os.getcwd()+ '\n')
 fLog.write("Start time computation: "+ localtime+ '\n')
 fLog.close()
 
-#Instanzschleife
+# loop over all realisations
 for k in range(0,nr_inst):
     if (iPM >= 1): print(os.getcwd())
 
     if (k%50 == 0):
-        print('-------------------------------------- neue Instanz ',k,'-------')
+        print('-------------------------------------- new instance ',k,'-------')
     fLog= open('log.txt','a')
-    fLog.write('Instanz: ' + str(k)+ '\n')
+    fLog.write('instance: ' + str(k)+ '\n')
     fLog.close()
 
     i_MOMsave=1
@@ -208,22 +212,21 @@ for k in range(0,nr_inst):
     #GCCendif  /* (COUNT_COLLS == 1) */
     ###########################################################################
     #
-    # Anfangsverteilung
+    # Initialise SIP ensemble
     #
     ###########################################################################
 
-    # Initialisiere Anfangsverteilung
 #GCCif (INITV == 1)
     [nr_SIPs,nEK_sip_ins,mEK_sip_ins,EK_krit,mdelta,mfix]=SI.InitSIP_ExpVert_singleSIP_WS(imlow,n10,r10,min10,eta_nu,xf0,N0,dV,nr_sip_max)
 #GCCendif /* if (INITV == 1) */
 #GCCif (INITV == 2)
-    nr_SIPs, nEK_sip_ins, mEK_sip_ins = SI.InitSIP_Alfonso(dV_skal=dV_skal) #20 Teilchen mit 17um und 10 Teilchen mit 21.4um oer aehnliches Setup
+    nr_SIPs, nEK_sip_ins, mEK_sip_ins = SI.InitSIP_Alfonso(dV_skal=dV_skal) #20 droplets with 17um and 10 droplets with 21.4um or similar setups
 #GCCendif /* if (INITV == 2) */
 
     MOMsave[k,0,:] = FK.Moments_k0_3(nEK_sip_ins,mEK_sip_ins)
     if (iPM >= 1): print('initial moments: ', MOMsave[k,0,:])
     if (iPM >= 1): print('nr_SIPs: ', nr_SIPs)
-    np.savetxt(fMom, MOMsave[k,0,:].reshape(1,4), fmt=outp_format_long) # reshape um alle 4 Werte in eine Zeile zu schreiben
+    np.savetxt(fMom, MOMsave[k,0,:].reshape(1,4), fmt=outp_format_long) # reshape necessary to write all 4 values in one row
     nr_SIPs_plot[k,0 ]= nr_SIPs
     nEK_sip_plot[k,0,0:nr_SIPs]=nEK_sip_ins
     mEK_sip_plot[k,0,0:nr_SIPs]=mEK_sip_ins
@@ -242,31 +245,32 @@ for k in range(0,nr_inst):
             #print('nr_SIPs',nr_SIPs,type(nr_SIPs))
             ibreak = AON.Aggregation(nr_SIPs,nEK_sip_ins,mEK_sip_ins,count_colls,cck,m_low,eta_indize,m_kernel)
 
-        if (it%imod_MOMsave ==0) & (it != 0): 
+        if (it%imod_MOMsave ==0) & (it != 0):
             MOMsave[k,i_MOMsave,:]=FK.Moments_k0_3(nEK_sip_ins,mEK_sip_ins)
             if (iPM >= 2): print(it,i_MOMsave,MOMsave[k,i_MOMsave,:])
-            np.savetxt(fMom, MOMsave[k,i_MOMsave,:].reshape(1,4), fmt=outp_format_long)          
+            np.savetxt(fMom, MOMsave[k,i_MOMsave,:].reshape(1,4), fmt=outp_format_long)
             i_MOMsave = i_MOMsave+1
 
         #>>>>>>>>>>>>>>>>>>remove zero weight SIPs, if present at all>>>>>>>>>>>>>>>>>>>>>
         if (min(nEK_sip_ins) == 0):
             index_list=nEK_sip_ins.nonzero()
-            #print('nr_SIPs alt: ',nr_SIPs)
+            #print('nr_SIPs old: ',nr_SIPs)
             nEK_sip_ins=nEK_sip_ins[index_list]
             mEK_sip_ins=mEK_sip_ins[index_list]
             nr_SIPs = nEK_sip_ins.size
-            #print('nr_SIPs neu: ',nr_SIPs)
+            #print('nr_SIPs new: ',nr_SIPs)
             if (nr_SIPs == 1):
                 print('only one SIP remains, stop computation of current instance, proceed with next instance' )
                 print('nu: ', nEK_sip_ins, 'm: ', mEK_sip_ins, 'time:', t, 'it: ', it)
                 ibreak = 1
 
-        #>>>>>>>>Einspeichern der Werte zum Plotten nach imod_GVplot Iterationen>>>>>>>>>>>>>
+        #>>>>>>>>save SIP data at specified points in time>>>>>>>>>>>>>
         if (it%imod_GVplot == 0) & (it != 0):
             nr_SIPs_plot[k,i_GVplot ]= nr_SIPs
             nEK_sip_plot[k,i_GVplot,0:nr_SIPs]=nEK_sip_ins
             mEK_sip_plot[k,i_GVplot,0:nr_SIPs]=mEK_sip_ins
-            if (iPM >= 2): print('GV rausschreiben, #,Iter-schritt, Zeit:', i_GVplot, it, it*dt)
+            if (iPM >= 2):
+                print('SIP output, #, it, time:', i_GVplot, it, it*dt)
             np.savetxt(fGV, [nr_SIPs], fmt='%5i')
             np.savetxt(fGV, nEK_sip_plot[k,i_GVplot,0:nr_SIPs].reshape(1,nr_SIPs), fmt=outp_format)
             np.savetxt(fGV, mEK_sip_plot[k,i_GVplot,0:nr_SIPs].reshape(1,nr_SIPs), fmt=outp_format)
@@ -277,10 +281,9 @@ for k in range(0,nr_inst):
         #if (ibreak == 1):
             #print('break condition met at iteration it = ', it)
 
+    #>>>>>>end of time iteration of a single instance>>>>>>>>>
 
-    #>>>>>>Ende der Zeititeration einer Instanz>>>>>>>>>
-
-    #>>>>>>>>>>Rechenzeitanalyse>>>>>>>>>>>>>>>>>>>>
+    #>>>>>>>>>>analyse computing time>>>>>>>>>>>>>>>>>>>>
     currenttime = time.time()
     currenttime_str = time.asctime( time.localtime(currenttime))
     endtime_expected=starttime+ (nr_inst/(k+1)) * (currenttime-starttime)
@@ -301,14 +304,14 @@ for k in range(0,nr_inst):
     fLog.write('b '+" ".join("{:.4}".format(x) for x in cc_frac)+'\n')
 #GCCendif  /* (COUNT_COLLS == 1) */
     fLog.close()
-#<<<<<<<<<<<<<<<<<Ende der Schleife ueber Instanzen<<<<<<<<<<<<<<<<<
+#<<<<<<<<<<<<<<<<<end of loop of all realisations<<<<<<<<<<<<<<<<<
 
 fMom.close()
 fGV.close()
 localtime = time.asctime( time.localtime(time.time()) )
 print("End time computation:", localtime)
 
-#>>>>>>>>>>>>>>>>Erstelle Metadaten der ausgegebenen Dateien>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>>>Generate meta data>>>>>>>>>>>>>
 fMom = open('Moments_meta.dat', 'wb')
 np.savetxt(fMom,np.array([dV,skal_m]),fmt = '%10e')
 np.savetxt(fMom,np.array([nr_inst,nr_MOMsave]),fmt = '%4d')
@@ -318,17 +321,17 @@ fGV  = open('SIP_meta.dat', 'wb')
 np.savetxt(fGV,np.array([nr_inst,nr_GVplot]),fmt = '%4d')
 np.savetxt(fGV, t_vec_GVplot.reshape(1,nr_GVplot),fmt = '%6d')
 fGV.close()
-#>>>>>>>Erstelle Dateien mit gemittelten Werte>>>>>>>>>>>>>>>
+#>>>>>>>Generate data file with mean moments>>>>>>>>>>>>>>>
 FK.CIO_MOMmean(data_in=MOMsave,fp_out='',skal_m=skal_m,dV=dV)
 
 fLog= open('log.txt','a')
 currenttime = time.time()
 fLog.write('total computing time in sec: '+ str(int(currenttime-starttime)) + '\n')
-fLog.write('finalised')
+fLog.write('finalised\n')
 fLog.close()
 
 #----------------------------------------------------------------------------------
-#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>Plotten der Simulation>>>>>>>>>>>>>>>>>>>>>>>
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>generate plot for a first analysis>>>>>>>>>>>>>>>>>>>>>>>
 
 
 for i in range (4): MOMsave[:,:,i] = MOMsave[:,:,i]*skal_m**i/dV
@@ -352,29 +355,31 @@ PS.PlotRelStdDev(mEK_sip_plot, t_vec_GVplot)
 imod_GVplot=int(t_intervall_GVplot/dt)
 nr_GVplot = int(1 + (Tsim-t_start_GVplot)/t_intervall_GVplot)
 t_end_GVplot = t_start_GVplot + (nr_GVplot-1)*t_intervall_GVplot
-t_vec_GVplot=np.arange(t_start_GVplot,t_end_GVplot+1,t_intervall_GVplot) #Zeitpunkte an denen geplottet wird
+t_vec_GVplot=np.arange(t_start_GVplot,t_end_GVplot+1,t_intervall_GVplot) #times at which SIP data is saved and size distributions can be plotted
 
 imod_MOMsave=int(t_intervall_MOMsave/dt)
 nr_MOMsave = int(1 + (Tsim-t_start_MOMsave)/t_intervall_MOMsave)
 t_end_MOMsave = t_start_MOMsave + (nr_MOMsave-1)*t_intervall_MOMsave
-t_vec_MOMsave=np.arange(t_start_MOMsave,t_end_MOMsave+1,t_intervall_MOMsave) 
+t_vec_MOMsave=np.arange(t_start_MOMsave,t_end_MOMsave+1,t_intervall_MOMsave)
+    #usually a finer time grid is used for saving the moment data
 
 print(t_vec_MOMsave)
 print(nr_MOMsave)
 
-nr_MOMs=4  # notiere Momente 1 bis 3
+nr_MOMs=4  # evaluate moments of order 0 to nr_MOMs-1
 MOMsave=np.zeros([nr_inst,nr_MOMsave,nz,nr_MOMs])
 
-# Momente 0 bis 3 und SIP-Anzahl, die ueber top und bottom boundary wandern
-# instantaner Flux = Mittel ueber Zeitraum der Länge t_intervall_GVplot
-# at time t=0 all fluxes are set to zero, array of length nr_GVplot-1
-FluxIn    =np.zeros([nr_inst,nr_GVplot-1,nr_MOMs+1]) 
+# track fluxes of moments 0 to nr_MOMs-1 together with SIP number at the lower and upper boundary
+# "instantaneous" flux: actually the flux is an average over a time period of length t_intervall_GVplot
+# in the "SIP world" with discrete crossings of SIPs across the boundaries it is not reasonable/possible to determine instantaneous fluxes
+# at time t=0 all fluxes are set to zero and not output, hence array of length nr_GVplot-1 is used
+FluxIn    =np.zeros([nr_inst,nr_GVplot-1,nr_MOMs+1])
 FluxOut   =np.zeros([nr_inst,nr_GVplot-1,nr_MOMs+1])
 FluxInAcc =np.zeros([nr_inst,nr_GVplot-1,nr_MOMs+1])
 FluxOutAcc=np.zeros([nr_inst,nr_GVplot-1,nr_MOMs+1])
 
-#GCCif (TRACKCENTER == 1) 
-# last index before aggregation, after aggregation, after sedimentation
+#GCCif (TRACKCENTER == 1)
+# last index has 3 components: before aggregation, after aggregation, after sedimentation
 zCenterIC_full=np.zeros([nr_inst,nr_MOMsave,nz,nr_MOMs,3])
 zCenterSIP_full=np.zeros([nr_inst,nr_MOMsave,nz,nr_MOMs,3])
 zCenterIC_av=np.zeros([nr_MOMsave,nr_MOMs,3])
@@ -390,13 +395,13 @@ outp_format_long='%1.6e'
 outp_format_flux=('%1.4e','%1.4e','%1.4e','%1.4e','%9d')
 
 
-#Erstelle Metadaten der Simulation
+#generate the general meta data file
 fMeta = open('Meta.dat','w')
-fMeta.write("{:5d} {:7.3f} {:7.1f} {:5d}\n".format(nz,dz,Tsim,nr_inst)) 
+fMeta.write("{:5d} {:7.3f} {:7.1f} {:5d}\n".format(nz,dz,Tsim,nr_inst))
 fMeta.write("{:7.3e} {:7.3e} {:7.3e} {:3d} {:3d} {:3d} \n".format(LWC,r0,xf0,ikernel,i_init_1D,i_process))
 fMeta.close()
 
-#Erstelle Metadaten der ausgegebenen Dateien
+#generate the meta data files for particular meta data files
 fMomMeta = open('Moments_meta.dat', 'wb')
 np.savetxt(fMomMeta,np.array([dV,skal_m]),fmt = '%10e')
 np.savetxt(fMomMeta,np.array([nr_inst,nr_MOMsave]),fmt = '%4d')
@@ -407,7 +412,7 @@ np.savetxt(fGVMeta,np.array([nr_inst,nr_GVplot]),fmt = '%4d')
 np.savetxt(fGVMeta, t_vec_GVplot.reshape(1,nr_GVplot),fmt = '%6d')
 fGVMeta.close()
 
-#Oeffnen der Ausgabe-Dateien
+#open output files
 fMom = open('Moments.dat', 'wb')
 fGV  = open('SIP.dat', 'wb')
 fLog= open('log.txt','a')
@@ -448,9 +453,9 @@ fLog.close()
 for k in range(0,nr_inst):
     if (iPM >= 1): print(os.getcwd())
 
-    print('-------------------------------------- neue Instanz ',k,'-------')
+    print('-------------------------------------- new instance ',k,'-------')
     fLog= open('log.txt','a')
-    fLog.write('Instanz: ' + str(k)+ '\n')
+    fLog.write('instance: ' + str(k)+ '\n')
     fLog.close()
 
     #GCCif (TRACKOUT == 1)
@@ -462,19 +467,24 @@ for k in range(0,nr_inst):
 
     i_MOMsave=1
     i_GVplot=1
+
+    #GCCif (SPEED_VECTOR == 0)
     random.seed(32+(k+nr_ins_start)*123433)
+    #GCCendif /* (SPEED_VECTOR == 0) */
+    #GCCif (SPEED_VECTOR == 1)
+    np.random.seed(32+(k+nr_ins_start)*123433)
+    #GCCendif /* (SPEED_VECTOR == 1) */
+
     count_colls=0
     #GCCif (COUNT_COLLS == 1)
     count_colls=np.zeros(20,dtype=np.uint64)
     #GCCendif  /* (COUNT_COLLS == 1) */
-    
-    ###########################################################################
-    #
-    # Anfangsverteilung
-    #
-    ###########################################################################
 
-    # Initialisiere Anfangsverteilung
+    ###########################################################################
+    #
+    # Initialise SIP ensemble
+    #
+    ###########################################################################
 
     nEK_sip_ins = np.zeros(nr_sip_max)
     mEK_sip_ins = np.zeros(nr_sip_max)
@@ -497,7 +507,7 @@ for k in range(0,nr_inst):
         #  !    6 = total domain
         #  !    7 = linearly decaying over top quarter from 2*g_init to 0
         #  !    8 = sin()-hill over top half with 2*g_init max peak
-        #  !    9 = sin()-hill over top quarter with 2*g_init max peak 
+        #  !    9 = sin()-hill over top quarter with 2*g_init max peak
 
     if (i_init_1D == 1): i_start = nz + 1
     if (i_init_1D == 2): i_start = nz
@@ -508,7 +518,7 @@ for k in range(0,nr_inst):
     if (i_init_1D == 7): i_start = 3 * nz / 4
     if (i_init_1D == 8): i_start = nz / 2
     if (i_init_1D == 9): i_start = 3 * nz / 4
-    i_start = i_start -1 # obiger Block aus Fortran uebernommen, Python-Indizierung startet bei 0, nicht bei 1 wie Fortran
+    i_start = i_start -1 # above block analagous to block in Botts F77 programm. Be aware that python indices start at 0, not at 1 like in Fortran
 
     for iz in range(0,nz):
         #print('init row ', iz,i_init_1D,i_start)
@@ -541,9 +551,7 @@ for k in range(0,nr_inst):
             nr_SIPs = 0
 
         iSIP_GBsep[iz]=count_save
-        #print(iz,iSIP_GBsep[iz],zGBsep[iz])
-        #Erhoehung SIP-Zaehler
-        count_save=count_save+nr_SIPs
+        count_save += nr_SIPs
 
     # total SIP number after end of column initialization
     nr_SIPs_tot=count_save
@@ -572,9 +580,9 @@ for k in range(0,nr_inst):
         if (nr_SIPs > 0): MOMsave[k,0,iz,:] = FK.Moments_k0_3(nEK_sip_ins[ia:ie],mEK_sip_ins[ia:ie])
         if (iPM >= 1): print('initial moments: ', MOMsave[k,0,iz,:])
         if (iPM >= 1): print('nr_SIPs: ', nr_SIPs)
-        np.savetxt(fMom, MOMsave[k,0,iz,:].reshape(1,4), fmt=outp_format_long) # reshape um alle 4 Werte in eine Zeile zu schreiben
+        np.savetxt(fMom, MOMsave[k,0,iz,:].reshape(1,4), fmt=outp_format_long) # reshape necessary to write all 4 values in one row
         np.savetxt(fGV, np.array([nr_SIPs,iz]).reshape(1,2), fmt='%6i')
-        if (nr_SIPs > 0): 
+        if (nr_SIPs > 0):
             np.savetxt(fGV, nEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
             np.savetxt(fGV, mEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
             np.savetxt(fGV, zEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
@@ -586,12 +594,12 @@ for k in range(0,nr_inst):
 
 #prepare SIP processing
 
-    #sort SIPs by z-position and find indices set of each grid box
+    #sort SIPs by z-position and find index range of each grid box
     #GCCif (INFLUX_TOP != 1)
     perm_sort=np.argsort(zEK_sip_ins[:nr_SIPs_tot+1]) #keep only SIPs in column + exactly one additional SIP with zNan (this extra SIPs is necessary for keeping get_isep routine simple)
     #GCCelse
     # do not shorten SIP arrays, if non-zero influx is chosen
-    perm_sort=np.argsort(zEK_sip_ins)  # this statement keeps all nr_sip_max SIPs 
+    perm_sort=np.argsort(zEK_sip_ins)  # this statement keeps all nr_sip_max SIPs even if the SIP list is shorter than that
     #GCCendif /* (INFLUX_TOP != 1)*/
 
     nEK_sip_ins=nEK_sip_ins[perm_sort]
@@ -604,12 +612,12 @@ for k in range(0,nr_inst):
     [iSIP_GBsep,nr_SIPs_GB] = FK.get_isep(zEK_sip_ins,zGBsep,nz)
 
     ausw_SIPs_active = np.flatnonzero(zEK_sip_ins <= zCol)
-    nr_SIPs_tot=len(ausw_SIPs_active) 
+    nr_SIPs_tot=len(ausw_SIPs_active)
     print('nr_SIPs_tot',nr_SIPs_tot,len(perm_sort),zEK_sip_ins.min(),zEK_sip_ins.max(),zCol)
 
-    #GCCif (TRACKCENTER == 1) 
+    #GCCif (TRACKCENTER == 1)
 # track centers of ICs and SIPs
-    tmp,nom,denom=FK.trackcenters(nEK_sip_ins,mEK_sip_ins,zEK_sip_ins,iSIP_GBsep,nr_SIPs_GB,nz,dz) 
+    tmp,nom,denom=FK.trackcenters(nEK_sip_ins,mEK_sip_ins,zEK_sip_ins,iSIP_GBsep,nr_SIPs_GB,nz,dz)
         #returns tmp: array of size (2,nz,nr_MOMs)
         #        nom: array of size (2,nr_MOMs)
         #        denom: array of size (2,nr_MOMs)
@@ -648,17 +656,15 @@ for k in range(0,nr_inst):
     for it in range(0,iend):
         t = it * dt
         #GCCif (INFLUX_TOP == 1)
-        #let new SIPs fall into the domain, probabilistic implementation of a influx BC
+        #let new SIPs fall into the domain, probabilistic implementation of an influx BC
         #generate a full SIP ensemble of a prescribed inflow SD
         [nr_SIPs_BC,nEK_sip_BC,mEK_sip_BC,EK_krit,mdelta,mfix]=SI.InitSIP_ExpVert_singleSIP_WS(imlow,n10,r10,min10,eta_nu,xf0,N0_pick,dV,nr_sip_max,dV_skal=dV_skal,silent=1)
         #compute how far each SIPs travels into the domain
         zdiff = SD.Fallg(FK.m2r(mEK_sip_BC,const_mass2rad))*dt
-        #np.flatnonzero(mEK_sip_BC > 2.1361e-09)
-        #print('zdiff \n', zdiff[mEK_sip_BC > 2.1361e-09])
         # probabilities of SIPs being generated, i.e. fractional number of a SIP
         nrSIP_per_bin_frac = zdiff/dz*nr_SIPs_skal
         #print('nrSIP_per_bin_frac \n',nrSIP_per_bin_frac[mEK_sip_BC > 2.1361e-09])
-        nrSIP_per_bin_floored = np.floor(nrSIP_per_bin_frac).astype(int) # at least nrSIP_per_bin_floored SIPs from a bin are generated
+        nrSIP_per_bin_floored = np.floor(nrSIP_per_bin_frac).astype(int) # at least nrSIP_per_bin_floored SIPs from a bin grid are generated
         prob_SIP = nrSIP_per_bin_frac - nrSIP_per_bin_floored # probability that nrSIP_per_bin_floored + 1 SIPs are generated from a bin
         p_vec = np.random.random(nr_SIPs_BC)
         nr_SIPs_save = nr_SIPs_tot
@@ -682,7 +688,7 @@ for k in range(0,nr_inst):
 
 
         #GCCif (PROCESS == 1)
-        #compute w of all new SIPs for onlySedi-case
+        # compute w of all new SIPs, only for onlySedi-case
         wEK_sip_ins[nr_SIPs_save:nr_SIPs_tot]=SD.Fallg(FK.m2r(mEK_sip_ins[nr_SIPs_save:nr_SIPs_tot],const_mass2rad))
         #GCCendif  /* (PROCESS == 1) */
 
@@ -696,13 +702,12 @@ for k in range(0,nr_inst):
         #GCCendif /*(PROCESS != 2)*/
         [iSIP_GBsep,nr_SIPs_GB] = FK.get_isep(zEK_sip_ins,zGBsep,nz)
         #print('iSIP_GBsep, nr_SIPs_GB', iSIP_GBsep,nr_SIPs_GB)
-
         ausw_SIPs_active = np.flatnonzero(zEK_sip_ins <= zCol)
         nr_SIPs_tot=len(ausw_SIPs_active)
 
         #GCCendif /* (INFLUX_TOP == 1)*/
 
-        #GCCif (TRACKCENTER == 1) 
+        #GCCif (TRACKCENTER == 1)
         if (it%imod_MOMsave ==0) & (it != 0):
             tmp,nom,denom=FK.trackcenters(nEK_sip_ins,mEK_sip_ins,zEK_sip_ins,iSIP_GBsep,nr_SIPs_GB,nz,dz) #returns array of size (2,nz,nr_MOMs)
             zCenterIC_full [k,i_MOMsave,:,:,0]=tmp[0,:,:]
@@ -718,7 +723,6 @@ for k in range(0,nr_inst):
             #GCCif (PROCESS == 0)
         #update fall speeds of SIPs, not necessary when aggregation is switchd off
         rSIP_tmp=FK.m2r(mEK_sip_ins[ausw_SIPs_active],const_mass2rad)
-        #print('shape of rSIP_tmp',rSIP_tmp.shape)
         wEK_tmp=SD.Fallg(rSIP_tmp)
             #GCCendif /* (PROCESS == 0) */
             #GCCif (PROCESS == 1)
@@ -754,7 +758,7 @@ for k in range(0,nr_inst):
             #GCCendif /* (WELLMIXED >= 2) */
         #GCCendif /* (PROCESS != 1)*/
 
-        #GCCif (TRACKCENTER == 1) 
+        #GCCif (TRACKCENTER == 1)
         if (it%imod_MOMsave ==0) & (it != 0):
             tmp,nom,denom=FK.trackcenters(nEK_sip_ins,mEK_sip_ins,zEK_sip_ins,iSIP_GBsep,nr_SIPs_GB,nz,dz) #returns array of size (2,nz,nr_MOMs)
             zCenterIC_full [k,i_MOMsave,:,:,1]=tmp[0,:,:]
@@ -773,7 +777,7 @@ for k in range(0,nr_inst):
         zEK_sip_ins[ausw_SIPs_active] = np.random.random(nr_SIPs_tot)*nz*dz
         #GCCendif /* (RANDOMZ == 1)*/
 
-        #GCCif (TRACKCENTER == 1) 
+        #GCCif (TRACKCENTER == 1)
         if (it%imod_MOMsave ==0) & (it != 0):
             tmp,nom,denom=FK.trackcenters(nEK_sip_ins,mEK_sip_ins,zEK_sip_ins,iSIP_GBsep,nr_SIPs_GB,nz,dz) #returns array of size (2,nz,nr_MOMs)
             zCenterIC_full [k,i_MOMsave,:,:,2]=tmp[0,:,:]
@@ -800,7 +804,7 @@ for k in range(0,nr_inst):
             #---------treatment of lower boundary condition-------------
         ausw_outf = np.flatnonzero(zEK_sip_ins <= 0.0)
         ntmp=len(ausw_outf)
-        if (ntmp > 0): 
+        if (ntmp > 0):
             FluxOutAcctmp[0:4]=FluxOutAcctmp[0:4]+FK.Moments_k0_3(nEK_sip_ins[ausw_outf],mEK_sip_ins[ausw_outf])
             FluxOutAcctmp[4]=FluxOutAcctmp[4]+ntmp
             #GCCif (TRACKOUT == 1)
@@ -819,7 +823,7 @@ for k in range(0,nr_inst):
             zEK_sip_ins[ausw_outf]=zNan
             #GCCendif /* (INFLUX_TOP == 2)*/
 
-        #---------sort SIPs by z-position and find indices set of each grid box----------------
+        #---------sort SIPs by z-position and find index range of each grid box----------------
         perm_sort=np.argsort(zEK_sip_ins)
         nEK_sip_ins=nEK_sip_ins[perm_sort]
         mEK_sip_ins=mEK_sip_ins[perm_sort]
@@ -841,10 +845,10 @@ for k in range(0,nr_inst):
                 ia=iSIP_GBsep[iz]
                 ie=iSIP_GBsep[iz+1]
                 if (nr_SIPs > 0): MOMsave[k,i_MOMsave,iz,:] = FK.Moments_k0_3(nEK_sip_ins[ia:ie],mEK_sip_ins[ia:ie])
-                np.savetxt(fMom, MOMsave[k,i_MOMsave,iz,:].reshape(1,4), fmt=outp_format_long) # reshape um alle 4 Werte in eine Zeile zu schreiben
+                np.savetxt(fMom, MOMsave[k,i_MOMsave,iz,:].reshape(1,4), fmt=outp_format_long)# reshape necessary to write all 4 values in one row
             i_MOMsave = i_MOMsave+1
         #<<<<<<<<<<save moment data<<<<<<<<<<<<
-        
+
         #>>>>>>>>>> output SIP & save and output flux data>>>>>>>>>>-
         if (it%imod_GVplot == 0) & (it != 0):
             #---------output SIP data>>>>>>>>>>---------
@@ -857,7 +861,7 @@ for k in range(0,nr_inst):
                 ia=iSIP_GBsep[iz]
                 ie=iSIP_GBsep[iz+1]
                 np.savetxt(fGV, np.array([nr_SIPs,iz]).reshape(1,2), fmt='%6i')
-                if (nr_SIPs > 0): 
+                if (nr_SIPs > 0):
                     np.savetxt(fGV, nEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
                     np.savetxt(fGV, mEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
                     np.savetxt(fGV, zEK_sip_ins[ia:ie].reshape(1,nr_SIPs), fmt=outp_format)
@@ -875,7 +879,7 @@ for k in range(0,nr_inst):
 
             i_GVplot = i_GVplot+1
 
-    #------------end of time iteration of a single instance
+    #>>>>>>end of time iteration of a single instance>>>>>>>>>
 
     ## check influx SIP condition
     ## see "Sims1D/Tests/Test_11"
@@ -906,7 +910,7 @@ for k in range(0,nr_inst):
     #GCCendif /* (INFLUX_TOP == 1)*/
 
 
-    #Rechenzeitanalyse
+    #>>>>>>>>>>analyse computing time>>>>>>>>>>>>>>>>>>>>
     currenttime = time.time()
     currenttime_str = time.asctime( time.localtime(currenttime))
     endtime_expected=starttime+ (nr_inst/(k+1)) * (currenttime-starttime)
@@ -928,7 +932,7 @@ for k in range(0,nr_inst):
 #GCCendif  /* (COUNT_COLLS == 1) */
 
     fLog.close()
-#Ende der Schleife ueber Instanzen  
+#<<<<<<<<<<<<<<<<<end of loop of all realisations<<<<<<<<<<<<<<<<<
 #---------------------------------------------------------------------------------------------
 
 #GCCif (TRACKCENTER == 1)
@@ -951,7 +955,7 @@ for i_inst in range(nr_inst):
     skal[4]=1
     for i_GVplot in range(nr_GVplot-1):
         fo=FluxOutAcc[i_inst,i_GVplot,:]
-        fi=FluxInAcc[i_inst,i_GVplot,:] 
+        fi=FluxInAcc[i_inst,i_GVplot,:]
         FluxOut[i_inst,i_GVplot,:]= (fo - fo_tm1)/skal
         FluxIn[i_inst,i_GVplot,:] = (fi - fi_tm1)/skal
         fo_tm1=fo
@@ -1059,13 +1063,15 @@ PS.PlotMomentsProf(MOMmean_prof,t_vec_MOMsave,iMean=1,iTimes_select=Times)
 PS.PlotFluxesTime(FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec_GVplot[1:],iplot_onlyMean=1)
 #GCCendif /* (FLUX_time == 1) */
 
-#GCCif (TRACKCENTER == 1) 
+#GCCif (TRACKCENTER == 1)
 #PS.PlotCenter(zCenterIC_full,nr_SIPs_GB_save,t_vec_MOMsave, 'CenterIC')
 #PS.PlotCenter(zCenterSIP_full,nr_SIPs_GB_save,t_vec_MOMsave, 'CenterSIP')
 nr_SIPs_acc=nr_SIPs_GB_save.sum(axis=2).sum(axis=0)
 PS.PlotCenter(zCenterIC_av,nr_SIPs_acc,t_vec_MOMsave, 'CenterIC', av=1)
 PS.PlotCenter(zCenterSIP_av,nr_SIPs_acc,t_vec_MOMsave, 'CenterSIP',av=1)
 #GCCendif  /* (TRACKCENTER == 1) */
+
+
 
 # end of column model section
 #=============================== COLUMN-MODEL =============================================

@@ -1,12 +1,46 @@
-#!/bin/csh
 # script that controls the computation procedure
 # first create the file params_gcc.txt and params.txt, which contain the preprocessor definitions and relevant parameters included in the Python script
 # then create pre-processed interpretable source files in the given subdir
 # then execute the Python program
 
+import os
+import shutil
+import sys
+import re
+import glob
+import platform
+import time
+
 #set working directory in which Python program is executed
-setenv filepath 'Sims1D/Verification/SediAgg/nz50_inst20_k40_dz10/Instanz_00_09/'
-cat > params_gcc.txt << '\eof'
+FILEPATH = 'Sims1D/Verification/SediAgg/nz50_inst20_k05_dz10_py/'
+iverboseoutput = 1
+ilog_linux = 1
+
+def intermediate_format(tmp):
+    tmp = re.sub('^.+#GCC', '#GCC', tmp,flags=re.MULTILINE)
+        #include flag, then each line is tested. otherwise only the first line of the multiline string matches the pattern;
+        #"By default in python, the "^" and "$" special characters (these characters match the start and end of a line, respectively) only apply to the start and end of the entire string."
+    tmp = tmp.replace('#','!comment#')
+    tmp = tmp.replace('!comment#GCC','#')
+    return(tmp)
+
+def py_format(tmp):
+    tmp = tmp.replace('!comment#','#')
+    return(tmp)
+
+def py_format_file_inplace(fn):
+    f = open(fn,'r')
+    c = f.read()
+    f.close()
+    c_pyf = py_format(c)
+    f = open(fn,'w')
+    f.write(c_pyf)
+    f.close()
+
+CurrDir =  os.getcwd()
+print(CurrDir)
+
+output_to_file_params_gcc = """
 #define COMP  /* don't touch */
 #/* the following PPDs (PreProcessor Directives) control how computations are performed.*/
 #/*  ----------Kernel-------------   */
@@ -61,24 +95,28 @@ cat > params_gcc.txt << '\eof'
 #     = 2 Alfonso Hall kernel reference solution
 #     = 3 Alfonso product kernel reference solution
 #     = 9 read Bott/Wang(?) simulation data, set path fp_ref */
-'\eof'
+"""
 
-cat > params.txt  << '\eof'
+f = open('params_gcc.txt','w')
+f.write(output_to_file_params_gcc)
+f.close()
+
+output_to_file_params = """
 import math
 #----------- parameter definitions--------------------------
 
     # time step in seconds
-dt=  10.
+dt = 10.
 
     # simulated time in seconds
-Tsim= 3600.  #3600
+Tsim = 3600.  #3600
 
     #grid box volume
-dV=1. #in m^-3
+dV = 1. #in m^-3
 
 dV_skal = 1  #increase volume by this factor and call init routine multiple times (increase by factor dV_skal)
-dV=dV*dV_skal
-dVi=1./dV
+dV = dV*dV_skal
+dVi = 1./dV
 
     #number of realisations
 nr_inst = 20
@@ -189,7 +227,6 @@ iaddsimREF=0
 iaddsimREF = 1
 #GCCendif /* (IREF > 0) */
 
-
 #GCCif (COLUMN == 1)
 #number of grid boxes in the column
 nz = 50  #25
@@ -232,83 +269,151 @@ fp_ref  = fp_Bott + "testcases_onlysedi/quarterdomSIN_zeroinflow_1km_dz5m_FD3_is
 iPM = 0
 
 
-'\eof'
+"""
+f = open('params.txt','w')
+f.write(output_to_file_params)
+f.close()
 #--------------------------------generation of parameter files finished----------------------------------------
 
 
 # ----------------------------------preprocess and run Python code -------------------------------------------------
-# the full source files will be saved in subfolder full_source
-# the preprocessed files will be generated and executed in filepath
-
-#set echo
+# the full source files will be saved in subfolder full_source (FILEPATH_SOURCE)
+# the preprocessed files will be generated and executed in folder FILEPATH
 
 #list of source code files (separate lists for files with/without preprocessor directives)
-set list_module_gcc_files = "CompSim.gcc.py AON_Alg.gcc.py Kernel.gcc.py PlotSim.gcc.py Referenzloesung.gcc.py SIPinit.gcc.py Sedimentation.gcc.py"
-set list_module_nogcc_files = "Misc.nogcc.py"
+list_module_gcc_files = ('CompSim.gcc.py', 'AON_Alg.gcc.py', 'Kernel.gcc.py', 'PlotSim.gcc.py', 'Referenzloesung.gcc.py', 'SIPinit.gcc.py', 'Sedimentation.gcc.py')
+list_module_nogcc_files = ('Misc.nogcc.py',) # a 1-element needs a comma
+
+FILEPATH_SOURCE = os.path.join(FILEPATH,'full_source')
+
+print('current working directory:\n', FILEPATH)
 
     #copy files
-mkdir -p $filepath'/full_source/'
-mv params.txt params_gcc.txt $filepath'/full_source/'
-cp $list_module_gcc_files $list_module_nogcc_files $filepath'/full_source/'
-cp $0 $filepath
+if not os.path.isdir(FILEPATH_SOURCE):
+    os.makedirs(FILEPATH_SOURCE)
 
-cd $filepath
-echo "Current working directory"
-pwd
+for file2move in ('params.txt','params_gcc.txt'):
+    # if dst is given as folder path plus filename, then move overwrites a potentially existing file with the same name in the dst folder
+    shutil.move(file2move, os.path.join(FILEPATH_SOURCE, file2move))
 
-    #pre-process all Python code that is listed in list_module_gcc_files
-    #workaround for application of gcc necessary, as both GCC and Python use # to indicate directive and comments respectively
-    #temporarily use a different character sequence instead of # for Python comments
-    #additionally, GCC directives in the .gcc.py files use #GCC as marker
+name_current_script = sys.argv[0]
+shutil.copy(name_current_script, FILEPATH)
 
-sed 's/#/\!comment#/g;s/\!comment#GCC/#/g;' full_source/params.txt > params.tmptxt
-cat full_source/params_gcc.txt params.tmptxt > params.fpp
-gcc -E -P -C params.fpp > params.txt
+filelist2copy = list_module_gcc_files + \
+                list_module_nogcc_files
+for file2copy in filelist2copy:
+    shutil.copy(file2copy, FILEPATH_SOURCE)
 
-foreach file_gcc_py  ($list_module_gcc_files)
-    echo process file $file_gcc_py
-    set base = `basename $file_gcc_py .gcc.py`
-    sed -re 's/^.+#GCC/#GCC/' 'full_source/'$file_gcc_py > ${base}.tmp.tmptxt
-    sed 's/#/\!comment#/g;s/\!comment#GCC/#/g;' ${base}.tmp.tmptxt > ${base}.tmptxt
-    cat full_source/params_gcc.txt ${base}.tmptxt > ${base}.fpp
-    gcc -E -P -C ${base}.fpp > ${base}.tmptxt
-    sed 's/\!comment#/#/g;' ${base}.tmptxt > ${base}.py
-end
-sed --in-place 's/\!comment#/#/g;' params.txt
+os.chdir(FILEPATH)
 
-    #simply copy all Python code that is listed in list_module_nogcc_files
-foreach file_nogcc_py  ($list_module_nogcc_files)
-    echo copy file $file_nogcc_py
-    set base = `basename $file_nogcc_py .nogcc.py`
-    cp 'full_source/'/${base}.nogcc.py ${base}.py
-end
+#pre-process all Python code that is listed in list_module_gcc_files
+#workaround for application of gcc necessary, as both GCC and Python use # to indicate directive and comments respectively
+#temporarily use a different character sequence instead of # for Python comments
+#additionally, GCC directives in the .gcc.py files use #GCC as marker
 
-echo $0 > log.txt
-hostname >> log.txt
+tmp = intermediate_format(output_to_file_params)
+
+if (iverboseoutput == 1):
+    f = open('params.tmptxt','w') #verbose output
+    f.write(tmp) #verbose output
+    f.close() #verbose output
+
+f = open('params.fpp','w')
+f.write(output_to_file_params_gcc+tmp)
+f.close()
+os.system('gcc -E -P -C params.fpp > params.txt')
+
+print(os.listdir())
+print(os.listdir('full_source'))
+
+for file_gcc_py in list_module_gcc_files:
+    print('process file {}'.format(file_gcc_py))
+    filebasename = file_gcc_py.replace('.gcc.py','')
+    f = open(os.path.join('full_source', file_gcc_py),'r')
+    content = f.read()
+    f.close()
+    content_imf = intermediate_format(content)
+        #suffix _imf = intermediate format
+
+    if (iverboseoutput == 1):
+        f = open(filebasename+'.tmp.tmptxt','w') #verbose output
+        f.write(content_imf) #verbose output
+        f.close() #verbose output
+
+    f = open(filebasename+'.fpp','w')
+    f.write(output_to_file_params_gcc+content_imf)
+    f.close()
+
+    #gcc -E -P -C ${base}.fpp > ${base}.tmptxt
+    command_eval = 'gcc -E -P -C {0}.fpp -o {0}.tmptxt'.format(filebasename)
+    #command_eval = 'gcc -E -P -C {0}.fpp -o {0}.tmptxt'.format(FILEPATH_OUT+filebasename)
+    #print('call preprocessor with command:\n', command_eval)
+    os.system(command_eval)
+
+    f = open(filebasename+'.tmptxt','r')
+    content = f.read()
+    f.close()
+
+    content_pyf = py_format(content)
+    f = open(filebasename+'.py','w')
+    f.write(content_pyf)
+    f.close()
+
+py_format_file_inplace('params.txt')
+
+    #simply copy all Python code that is listed in list_module_gcc_files
+for file_nogcc_py in list_module_nogcc_files:
+     print('copy file {}'.format(file_nogcc_py))
+     filebasename = file_nogcc_py.replace('.nogcc.py','')
+     os.rename(os.path.join('full_source',filebasename+'.nogcc.py'), filebasename+'.py')
+
+#preparation of source code finished----------------------------------------
+
+f = open('log.txt','w')
+f.write(name_current_script + '\n')
+f.write(platform.uname()[1] + '\n')
+f.close()
+
+starttime = time.time()
+
 # start program
-echo start execution
-set startdate = `date`
-
+print('start execution')
 #### CHANGE: call python 3 with argument CompSim.py
 #use local python anaconda installation
-/net/lx116/export/home/unte_si/anaconda3/bin/python3 CompSim.py
-
+os.system('/net/lx116/export/home/unte_si/anaconda3/bin/python3 CompSim.py')
 #with Profiling
-#/net/lx116/export/home/unte_si/anaconda3/bin/python3 -m cProfile -o Profiling.dat -s time CompSim.py
+#os.system('/net/lx116/export/home/unte_si/anaconda3/bin/python3 -m cProfile -o Profiling.dat -s time CompSim.py')
 
-set enddate = `date`
-
-echo "execution start and end time"
-echo $startdate
-echo $enddate
+print("execution start and end time")
+endtime = time.time()
+print(time.asctime(time.localtime(starttime)),
+      time.asctime(time.localtime(endtime  )))
+f = open('log.txt','a')
+f.write('total computing time in sec: '+ str(int(endtime-starttime)) + '\n')
+f.close()
 
 #clean up
-echo "Clean Up"
-rm *.fpp *.s *.tmptxt
-mkdir -p CodeCompute/full_source
-mv *.py *.csh *txt CodeCompute
-mv full_source/* CodeCompute/full_source
-rmdir full_source
+print("Clean Up")
+filelist_tobedeleted = glob.glob("*.fpp") + glob.glob("*.s") + glob.glob("*.tmptxt")
+for file in filelist_tobedeleted:
+    os.remove(file)
 
-gzip SIP.dat
-gzip Moments.dat
+subdir = os.path.join('CodeCompute','full_source')
+if not os.path.isdir(subdir):
+    os.makedirs(subdir)
+
+filelist_tobemoved = glob.glob("*.py") + glob.glob("*txt") + glob.glob("full_source/*")
+
+for file2move in filelist_tobemoved:
+    # if dst is given as folder path plus filename, then move overwrites a potentially existing file with the same name in the dst folder
+    shutil.move(file2move, os.path.join('CodeCompute', file2move))
+
+# filelist_tobemoved =
+# for file2move in filelist_tobemoved:
+    # # if dst is given as folder path plus filename, then move overwrites a potentially existing file with the same name in the dst folder
+    # shutil.move(file2move, os.path.join('CodeCompute',  file2move))
+
+os.rmdir('full_source')
+#dest = shutil.move('full_source', 'CodeCompute/', copy_function = shutil.copytree)
+
+os.system('gzip SIP.dat; gzip Moments.dat')

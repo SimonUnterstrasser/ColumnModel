@@ -1,3 +1,6 @@
+'''
+main plot module that controls the generation of a-posteriori plot from existing simulation data. Simulation data is read (by the use of submodule InputOutput) and plots are generated (by the use of submodule PlotSim) as specified in the caller script
+'''
 import sys
 import os
 import math
@@ -8,11 +11,13 @@ import PlotSim as PS
 import Referenzloesung as REF
 #GCCendif /* (BIN == 1) */
 
+
 text=None
 label=None
 title=None
 ilastGVonly=None
 iDmean=0
+iPlotextras = 0
 #GCCinclude "params_plot.txt"
 
 #GCCif (((IREF == 3) && (KERNEL != 3)) || ((IREF == 2) && (KERNEL != 2)))
@@ -26,7 +31,7 @@ print('wrong combination of IREF and DISCRETE')
 exit(1)
 #GCCendif
 
-#GCCif ((MOM_meanTD == 2) && (COLUMN == 0)) 
+#GCCif ((MOM_meanTD == 2) && (COLUMN == 0))
 print('check preprocessor settings')
 print('wrong combination of MOM_meanTD and COLUMN')
 exit(1)
@@ -37,8 +42,7 @@ exit(1)
 def plotSingleSimulationGV(fp_in):
     #Einlesen der SIP-Daten
     nEK_sip_plot, mEK_sip_plot, zEK_sip_plot, nr_SIPs_plot, nr_SIPs_prof, t_vec_GVplot, V, skal_m = IO.readSingleSimulationSIPdata(fp_in)
-    #[nEK_sip_plot, mEK_sip_plot, nr_SIPs_plot, t_vec_GVplot] = IO.readSingleSimulationSIPdataMARION(fp_in)
-    #print(nr_SIPs_plot)
+
     nz=1
     #GCCif (COLUMN == 1)
     nz=IO.get_nz(fp_in)
@@ -49,16 +53,16 @@ def plotSingleSimulationGV(fp_in):
 
     #GCCif (DISCRETE  >= 1)
 def plotSingleSimulationRStD(fp_in):
-#Einlesen der SIP-Daten
+#Read SIP data
     nEK_sip_plot, mEK_sip_plot,zDummy, nr_SIPs_plot, nr_SIPs_prof, t_vec_GVplot, V, skal_m = IO.readSingleSimulationSIPdata(fp_in)
-#Erstelle Plot von relativer Standardabweichung
+#Generate plot of relative standard deviation
     PS.PlotRelStdDev(mEK_sip_plot, t_vec_GVplot)
 #<<<<<<<< end routine plotSingleSimulationRStD(fp)
     #GCCendif /* (DISCRETE  >= 1) */
 
 def plotSingleSimulationMOM(fp_in,iprof=0,itot=1):
-# reads Moment data of box model or column model data
-# for box model the design of the plot is straighforward, i.e. temporal evolution of moments
+# read Moment data of box model or column model data
+# for the box model the design of the plot is straightforward, i.e. temporal evolution of moments
 # for the colum model several options exists:
 #    1. temporal evolution of column integrated moments (itot = 1)
 #    2. profiles of moments at selected times (iprof = 1)
@@ -68,6 +72,9 @@ def plotSingleSimulationMOM(fp_in,iprof=0,itot=1):
     iSIPplot = 0
     nr_SIPs_prof = None
     t_vec_GVplot = None
+    nr_SIPs_mean = None
+    nr_SIPs_prof_mean = None
+
     #GCCif (addSIPplot > 0)
     iSIPplot = 1
     nEK_sip_plot, mEK_sip_plot,zDummy, nr_SIPs_plot, nr_SIPs_prof, t_vec_GVplot, V, skal_m = IO.readSingleSimulationSIPdata(fp_in)
@@ -96,6 +103,7 @@ def plotSingleSimulationMOM(fp_in,iprof=0,itot=1):
     nz=np.zeros(1, dtype=int)
     nz[0] = IO.get_nz(fp_in)
 
+
     if (iprof == 1):
         if (iSIPplot == 1):
             #GCCif (addSIPplot == 1)
@@ -104,14 +112,14 @@ def plotSingleSimulationMOM(fp_in,iprof=0,itot=1):
             #GCCif (addSIPplot == 2)
             nr_SIPs_prof_mean = nr_SIPs_prof_mean
             #GCCendif /* (addSIPplot == 2) */
+            pass
         for Times_elem in Times_list:
-            PS.PlotMomentsProf(MOMsave, t_vec_MOMsave, iplot_onlyMOMmean=1, 
+            PS.PlotMomentsProf(MOMsave, t_vec_MOMsave, iplot_onlyMOMmean=1,
                                nz_vec=nz, dz_vec=dz, iplotStdDev=iplotStdDev, iDmean=iDmean,
-                               iTimes_select=Times_elem, 
+                               iTimes_select=Times_elem,
                                iSIPplot=iSIPplot, nr_SIPs_prof_mean=nr_SIPs_prof_mean, t_vec_GVplot=t_vec_GVplot)
 
     # >>>> 2. integrate over column
-    #nz=IO.get_nz(fp_in)
     MOMsave=np.mean(MOMsave,axis=2)
     #GCCendif /*(COLUMN == 1)*/
 
@@ -123,7 +131,7 @@ def plotSingleSimulationMOM(fp_in,iprof=0,itot=1):
     #GCCendif /* (MOM_meanTD == 3) */
 
     #Erstelle Momenten-Plot
-    if (itot == 1): 
+    if (itot == 1):
         #GCCif (MOM_skal_m == 0)
         PS.PlotMoments(MOMsave,t_vec_MOMsave,iplot_onlyMOMmean=1,iplotStdDev=iplotStdDev,iDmean=iDmean,
                        iSIPplot=iSIPplot,nr_SIPs_mean=nr_SIPs_mean,t_vec_GVplot=t_vec_GVplot)
@@ -151,8 +159,10 @@ def plotSingleSimulationFLUX(fp_in):
 #<<<<<<<< end routine plotSingleSimulationFLUX(fp_in)
 
 def plotSingleSimulationGVout(fp_in,infalling=0):
-    # Einlesen der SIP-Daten
+    # Read SIP data
     # returns a list of SIPs of length nr_SIPs_out with nu and m and the time tEK_sip_out each SIP crossed the lower BC
+    # set infalling = 1 for additional tracking of infalling SIPs
+
     # A is the basal area of the column
     nEK_sip_out, mEK_sip_out, tEK_sip_out, nr_SIPs_out, Tsim, A = IO.readSingleSimulationSIP_outfalling_data(fp_in,infalling)
 
@@ -164,17 +174,19 @@ def plotSingleSimulationGVout(fp_in,infalling=0):
 import Misc as FK
 import PlotSim as PS
 
-def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
+def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0,iFinal=0,iTimesCross=0):
     nr_sims=len(filepath_input)
     print('call of plotMultipleSimulationMOM')
+    print('iTime, iProf, iFinal', iTime, iProf, iFinal)
     print('nr_sims:',nr_sims)
-    #if (label is not None) and (len(label) != nr_sims+iaddsimREF): 
+    #if (label is not None) and (len(label) != nr_sims+iaddsimREF):
         #print('wrong number of labels are given')
         #print('label',label)
         #print('nr_sims, iaddsimREF: ', nr_sims, iaddsimREF)
     iplot_mode=np.zeros(nr_sims,dtype=int) +2
     iplot_mode[0]=1
     iplot_mode[-1]=3
+    nr_Mom = 4
 
     #GCCif (STD == 0)
     iplotStdDev = 0
@@ -192,6 +204,7 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
     nr_inst_vec = np.zeros(nr_sims,dtype='int')
     dV_vec      = np.zeros(nr_sims)
     nz_vec      = np.zeros(nr_sims,dtype='int')
+    nt_eval = np.zeros(nr_sims,dtype='int')
 
     #GCCif (COLUMN == 1)
     dz_vec      =np.zeros(nr_sims)
@@ -217,13 +230,17 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
         nr_inst_max = nr_inst_vec.max()
 
         nt_max=300
-        nr_Mom = 4
         MOMsave=np.zeros([nr_sims,nt_max,nz_max,nr_Mom])
         t_vec_MOM_vec=np.zeros([nr_sims,nt_max])
         if (iplotStdDev == 1):
             MOMprof_StdDev = np.zeros([1,nr_sims,nt_max,nz_max,nr_Mom])
         if (iplotStdDev == 2):
             MOMprof_StdDev = np.zeros([2,nr_sims,nt_max,nz_max,nr_Mom])
+    if (iFinal == 1):
+        MOMFinal = np.zeros([nr_sims,nr_Mom])
+
+    if (iTimesCross == 1):
+        TimesCross = np.zeros([nr_sims,2,3]) #second dimension: 2 components for lambda_0 and lambda_2, third dimension for three threshold levels
 
     iSIPplot = 0
     nr_SIPs_prof_mean = None
@@ -234,7 +251,7 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
     #GCCif (addSIPplot > 0)
     iSIPplot = 1
     nz_max      = nz_vec.max()
-    nr_SIPs_mean, nr_SIPs_prof_mean, t_vec_GVplot_vec, ntGV_vec = plotMultipleSimulationGV(filepath_input, igetSIPdataonly=1, nz_max=nz_max, dz_vec=dz_vec) # uebergibt SIP-Daten aller Sims
+    nr_SIPs_mean, nr_SIPs_prof_mean, t_vec_GVplot_vec, ntGV_vec = plotMultipleSimulationGV(filepath_input, igetSIPdataonly=1, nz_max=nz_max, dz_vec=dz_vec) # with igetSIPdataonly=1 the routine does not generate a plot, but returns the SIP data of all simulations
     t_vec_GVplotsingleSim = np.squeeze(t_vec_GVplot_vec[0,:])
     #GCCendif /* (addSIPplot > 0) */
 
@@ -244,17 +261,44 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
         fp=filepath_input[i]
         print('process simulation:',fp)
         #GCCif (BIN != 1)
-        MOMsingleSim, t_vec_MOMsingleSim, skal_m, dV =IO.readSingleSimulationMoments(fp)
-        dV_vec[i]      = dV
-        #GCCelse
-        #nzREF = nz_vec[i]
-        #ntREF = nt_vec[i]
-        ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF,rgridREF,mgridREF=REF.get_RefMetaData(fp=fp)
+        iFinalData = iFinal * 2
 
+        if (iFinal == 1) and (iProf == 0) and (iTime == 0):
+            #faster execution possible as file MomentsMean.dat is processed
+            MOMmeanFinalsingleSim, dV, skal_m, iFinalData = IO.readSingleSimulationMomentsMeanFinal(fp,iPlotextras=iPlotextras)
+            print('FinalData: ', i,iFinalData,MOMmeanFinalsingleSim)
+            MOMFinal[i,:] = MOMmeanFinalsingleSim
+
+            # if iFinalData = 1 then reading the MeanMoments data was succesful
+            # iFinalData =1 can only happen for the above combination of (iFinal = 1) and (iProf = 0) and (iTime = 0)
+
+        #iFinalData:
+            # 0 no iFinal=1 analysis
+            # 1 iFinal=1 analysis with mean data succesful. Moreover iProf = 0 and iTime = 0 and no further processing of full data is necessary
+            # 2 iFinal=1 analysis with mean data not succesful. Read normal data.
+
+        if (iFinalData != 1):
+            MOMsingleSim, t_vec_MOMsingleSim, skal_m, dV =IO.readSingleSimulationMoments(fp)
+            nt_eval[i] = t_vec_MOMsingleSim.size
+        dV_vec[i]      = dV
+
+        if (iTimesCross == 1):
+            #faster execution possible as file MomentsMean.dat is processed
+            TimesCross_singleSim = IO.readSingleSimulationMomentsMeanFinal(fp,iPlotextras=iPlotextras,iTimesCross=1,thresh=thresholds_TimeCross)
+            print(i, TimesCross_singleSim)
+            TimesCross[i,:,:] = TimesCross_singleSim
+        #GCCelse
+
+        ntREF,nzREF,dzREF,dtREF,TsimREF,nbinREF,scalREF,dlnrREF,rgridREF,mgridREF=REF.get_RefMetaData(fp=fp)
         MOMsingleSim = REF.get_RefProfileData(nzREF, ntREF, fp, iswap=1, fp=fp)
         t_vec_MOMsingleSim = TsimREF/(ntREF-1)*np.arange(ntREF)
+        nt_eval[i] = t_vec_MOMsingleSim.size
+        if "Bott" in fp:
+            nt_eval[i] = ((nt_eval[i]-1)/2)+1
         dV_vec[i]      = 1.0
         skal_m = 1
+        iFinalData = 2 # ="analysis with mean data not succesful. Read normal data." as for bin data no shortcut exists
+        print('TsimREF, ntREF:', TsimREF, ntREF)
         #GCCendif /* (BIN != 1) */
 
         #GCCif (COLUMN == 0)
@@ -264,7 +308,7 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
         if (iProf == 1):
             nt_vec[i] = t_vec_MOMsingleSim.size
             print('AA',nt_vec[i])
-            if (nt_vec[i] > nt_max): 
+            if (nt_vec[i] > nt_max):
                 print ('nt_vec[i], nt_max', nt_vec[i], nt_max)
                 sys.exit('increase nt_max!!')
             #GCCif (STD > 0)
@@ -276,7 +320,7 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
 
             t_vec_MOM_vec[i,:nt_vec[i]]=t_vec_MOMsingleSim
 
-        if (iTime == 1):
+        if (iTime == 1) or (iFinalData == 2):
             #produce plot MeanMoments over time
             #individual call for each simulation
 
@@ -288,6 +332,9 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
             MOMmean=FK.CIO_MOMmean(data_in=MOMsingleSim,iexcludetop=iexcludetop)
             print(MOMmean.shape)
             #GCCendif /* else (STD > 0) */
+            if (iFinal == 1):
+                MOMFinal[i,:]=MOMmean[nt_eval[i]-1,:]
+                print('AA: ', nt_eval[i]-1,MOMFinal[i,:])
 
             print('sim: ', i)
             print('initial moments ', MOMmean[0])
@@ -312,30 +359,40 @@ def plotMultipleSimulationsMOM(filepath_input,iTime=0,iProf=0):
             nr_SIPs_mean_pick = nr_SIPs_mean[i,:]
             #GCCendif /* (addSIPplot > 0) */
 
-            #GCCif (MOM_skal_m == 0)
-            PS.PlotMoments(MOMmean,t_vec_MOMsingleSim,iMean=1,iplot_mode=iplot_mode[i],
-                           label=label,title=title,nr_sims=nr_sims,text=text,
-                           iplotStdDev=iplotStdDev, MOM_StdDev=MOM_StdDev, iDmean=iDmean,
-                           iSIPplot=iSIPplot,nr_SIPs_mean=nr_SIPs_mean_pick,t_vec_GVplot=t_vec_GVplotsingleSim,
-                           iexcludetop=iexcludetop)
-            #GCCelse
-            PS.PlotMoments(MOMmean,t_vec_MOMsingleSim,iMean=1,iplot_mode=iplot_mode[i],
-                           label=label,title=title,nr_sims=nr_sims,text=text,
-                           iplotStdDev=iplotStdDev, MOM_StdDev=MOM_StdDev, iDmean=iDmean, skal_m=skal_m,
-                           iSIPplot=iSIPplot,nr_SIPs_mean=nr_SIPs_mean_pick,t_vec_GVplot=t_vec_GVplotsingleSim,
-                           iexcludetop=iexcludetop)
-            #GCCendif /* else (MOM_skal_m == 0) */
+            if (iTime == 1):
+                #GCCif (MOM_skal_m == 0)
+                PS.PlotMoments(MOMmean,t_vec_MOMsingleSim,iMean=1,iplot_mode=iplot_mode[i],
+                            label=label,title=title,nr_sims=nr_sims,text=text,
+                            iplotStdDev=iplotStdDev, MOM_StdDev=MOM_StdDev, iDmean=iDmean,
+                            iSIPplot=iSIPplot,nr_SIPs_mean=nr_SIPs_mean_pick,t_vec_GVplot=t_vec_GVplotsingleSim,
+                            iexcludetop=iexcludetop)
+                #GCCelse
+                PS.PlotMoments(MOMmean,t_vec_MOMsingleSim,iMean=1,iplot_mode=iplot_mode[i],
+                            label=label,title=title,nr_sims=nr_sims,text=text,
+                            iplotStdDev=iplotStdDev, MOM_StdDev=MOM_StdDev, iDmean=iDmean, skal_m=skal_m,
+                            iSIPplot=iSIPplot,nr_SIPs_mean=nr_SIPs_mean_pick,t_vec_GVplot=t_vec_GVplotsingleSim,
+                            iexcludetop=iexcludetop)
+                #GCCendif /* else (MOM_skal_m == 0) */
 
 #produce plot MomentProfiles
     if (iProf == 1):
-        for Times_elem in Times_list: 
-            PS.PlotMomentsProf(MOMsave, t_vec_MOM_vec, iMultipleSims=1, iMean=1, 
+        for Times_elem in Times_list:
+            PS.PlotMomentsProf(MOMsave, t_vec_MOM_vec, iMultipleSims=1, iMean=1,
                                nr_inst_vec=nr_inst_vec, nz_vec=nz_vec, nt_vec=nt_vec, dz_vec = dz_vec,
                                label=label,title=title,text=text,
                                iplot_onlyMOMmean=1,iTimes_select=Times_elem,
-                               iplotStdDev=iplotStdDev, MOMprof_StdDev=MOMprof_StdDev, iDmean=iDmean, 
+                               iplotStdDev=iplotStdDev, MOMprof_StdDev=MOMprof_StdDev, iDmean=iDmean,
                                iSIPplot=iSIPplot, nr_SIPs_prof_mean=nr_SIPs_prof_mean, t_vec_GVplot=t_vec_GVplot_vec, ntGV_vec=ntGV_vec
                                )
+#produce summary plot with final moment value
+    if (iFinal == 1):
+        PS.PlotMomentsFinal(MOMFinal)
+
+#produce summary plot with crossing times
+    if (iTimesCross == 1):
+        PS.PlotMomentsTimeCross(TimesCross)
+
+
 #<<<<<<<< end routine  plotMultipleSimulationsMOM(filepath_input)
 
 def plotMultipleSimulationGV(filepath_input, igetSIPdataonly=0, nz_max=0, dz_vec=0):
@@ -363,7 +420,7 @@ def plotMultipleSimulationGV(filepath_input, igetSIPdataonly=0, nz_max=0, dz_vec
     for i_sim in range(0,nr_sims):
         fp=filepath_input[i_sim]
         print('process simulation:',fp)
-#Einlesen SIP-Daten
+# read SIP data
         nEK_sip_plot_sim, mEK_sip_plot_sim,zDummy, nr_SIPs_plot_sim, nr_SIPs_prof_sim, t_vec_GVplot, V, skal_m = IO.readSingleSimulationSIPdata(fp,nr_sip_max=nr_sip_max)
         nr_inst,nr_GVplot,nr_SIPs = nEK_sip_plot_sim.shape
         Vtot_vec[i_sim] = V
@@ -372,7 +429,7 @@ def plotMultipleSimulationGV(filepath_input, igetSIPdataonly=0, nz_max=0, dz_vec
         print('nr_inst,nr_GVplot,nr_SIPs',nr_inst,nr_GVplot,nr_SIPs)
         print(nr_SIPs_plot_sim.shape)
         nr_inst_vec[i_sim] = nr_inst
-        if (nr_inst > nr_inst_max): 
+        if (nr_inst > nr_inst_max):
             print ('increase nr_inst_max: ', nr_inst, nr_inst_max )
         nr_SIPs_plot[i_sim,0:nr_inst,:nr_GVplot] = nr_SIPs_plot_sim
         nEK_sip_plot[i_sim,0:nr_inst,:nr_GVplot,:nr_SIPs]= nEK_sip_plot_sim
@@ -394,8 +451,8 @@ def plotMultipleSimulationGV(filepath_input, igetSIPdataonly=0, nz_max=0, dz_vec
         #GCCendif /* (addSIPplot > 0) */
 
     if (igetSIPdataonly == 0):
-    #Erstelle GV-Plot
-        for Times_elem in Times_list: 
+    # Generate size distribution plot
+        for Times_elem in Times_list:
             #GCCif (MOM_skal_m == 0)
             PS.PlotGV(nEK_sip_plot,mEK_sip_plot,nr_SIPs_plot,t_vec_GVplot,
                     iMultipleSims=1,nr_inst_vec=nr_inst_vec,
@@ -425,14 +482,14 @@ def plotMultipleSimulationRStD(filepath_input,label=None,title=None):
     for i_sim in range(0,nr_sims):
         fp=filepath_input[i_sim]
         print('process simulation:',fp)
-#Einlesen SIP-Daten
+        # read SIP data
         nEK_sip_plot_sim, mEK_sip_plot_sim,zDummy, nr_SIPs_plot_sim, nr_SIPs_prof_sim, t_vec_GVplot, V, skal_m = IO.readSingleSimulationSIPdata(fp,nr_sip_max=nr_sip_max)
         nr_inst,nr_GVplot = nr_SIPs_plot_sim.shape
         nr_inst_vec[i_sim] = nr_inst
         #nr_SIPs_plot[i_sim,0:nr_inst,:] = nr_SIPs_plot_sim
         mEK_sip_plot[i_sim,0:nr_inst,:nr_GVplot,:]= mEK_sip_plot_sim
 
-#Erstelle GV-Plot
+    # Generate size distribution plot
     PS.PlotRelStdDev(mEK_sip_plot,t_vec_GVplot,iMultipleSims=1,nr_inst_vec=nr_inst_vec,label=label,title=title)
 #<<<<<<<< end routine plotMultipleSimulationRStD(filepath_input,label=None,title=None)
 
@@ -527,7 +584,7 @@ def plotMultipleSimulationGVout(filepath_input,infalling=0):
     for i_sim in range(0,nr_sims):
         fp=filepath_input[i_sim]
         print('process simulation:',fp)
-#Einlesen SIP-Daten
+        # read SIP data
         nEK_sip_out_sim, mEK_sip_out_sim, tEK_sip_out_sim, nr_SIPs_out_sim, Tsim, A = IO.readSingleSimulationSIP_outfalling_data(fp,infalling)
 
         nr_inst,nr_SIPs = nEK_sip_out_sim.shape
@@ -536,13 +593,13 @@ def plotMultipleSimulationGVout(filepath_input,infalling=0):
         print('nr_inst,nr_SIPs', nr_inst, nr_SIPs)
         print(nr_SIPs_out_sim.shape)
         nr_inst_vec[i_sim] = nr_inst
-        if (nr_inst > nr_inst_max): 
+        if (nr_inst > nr_inst_max):
             print ('increase nr_inst_max: ', nr_inst, nr_inst_max )
         nr_SIPs_out[i_sim,0:nr_inst] = nr_SIPs_out_sim
         nEK_sip_out[i_sim,0:nr_inst,:nr_SIPs]= nEK_sip_out_sim/A
         mEK_sip_out[i_sim,0:nr_inst,:nr_SIPs]= mEK_sip_out_sim
 
-#Erstelle GV-Plot
+    # Generate size distribution plot
     PS.PlotGV(nEK_sip_out,mEK_sip_out,nr_SIPs_out,[3600],iMultipleSims=1,nr_inst_vec=nr_inst_vec,label=label,title=title, outfallingGV=1+infalling)
 #<<<<<<<< end routine plotMultipleSimulationGVout(filepath_input)
 
@@ -550,6 +607,8 @@ def plotMultipleSimulationGVout(filepath_input,infalling=0):
 
 
 #--------------- end defintion of subroutines --------------------------------------------------------------------
+
+
 
 
 #GCCif (IMODE == 1)
@@ -599,18 +658,30 @@ plotMultipleSimulationRStD(filepath_input)
     #GCCendif /* (rSIGMA_time >= 1) */
 
     #GCCif (MOM_meanTD >= 1 || MOM_prof == 1)
-iProf=None
-iTime=None
+iProf=0
+iTime=0
+iFinal=0
+iTimesCross=0
     #GCCif (MOM_meanTD >= 1)
 iTime=1
+    #GCCif (FINAL == 1)
+iFinal=1
+iTime=0
+    #GCCendif /* (FINAL == 1) */
+    #GCCif (TIMECROSS == 1)
+iTimesCross=1
+iTime=0
+    #GCCendif /* (TIMECROSS == 1) */
+
     #GCCendif /* (MOM_meanTD >= 1) */
+
     #GCCif (MOM_prof == 1)
 iProf=1
     #GCCendif /* (MOM_prof == 1) */
-plotMultipleSimulationsMOM(filepath_input,iTime=iTime,iProf=iProf)
+plotMultipleSimulationsMOM(filepath_input,iTime=iTime,iProf=iProf,iFinal=iFinal,iTimesCross=iTimesCross)
     #GCCendif /* (MOM_meanTD >= 1 || MOM_prof == 1) */
 
-    #GCCif (FLUX_time == 1)  
+    #GCCif (FLUX_time == 1)
 plotMultipleSimulationFLUX(filepath_input)
     #GCCendif /* (FLUX_time == 1) */
 

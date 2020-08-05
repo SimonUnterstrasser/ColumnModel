@@ -4,20 +4,18 @@ import Misc as FK
 #GCCif (COLUMN == 0)
 def readSingleSimulationSIPdata(fp_in, nr_sip_max=500):
 # >>>> box model version >>>>>>
-# liest SIP-Daten einer einzelnen Simulation ein
-# im Standardfall liegen alle Daten im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die SIP-Daten in den einzelnen Unterordnern eingelesen
+# Read SIP data of a single simulation.
+# In the default case, all SIP data are stored in the specified folder fp_in.
+# If a simulation was split into several subs-simulations, then read SIP data from the various subfolders.
 
-
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# default case, where all SIP data lie in folder fp_in
     i_singlefolder = 1
     dirs_subsim=['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
 
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+# Cases with sub-simulations
+    # if a given simulation is divided into sub-simulations, then by definition file InstanzenMeta.dat exists
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder = 0
@@ -25,7 +23,7 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=500):
         nr_subsims = int(fu.readline())
         nr_inst_tot = int(fu.readline())
         dirs_subsim = fu.readlines()
-        for i,s in enumerate(dirs_subsim):  # entferne trailing \n and other whitespace
+        for i,s in enumerate(dirs_subsim):  # remove trailing \n and other whitespace
             dirs_subsim[i] = s.strip()+'/'
 
         print('nr_subsims, nr_inst_tot: ', nr_subsims, nr_inst_tot)
@@ -34,7 +32,7 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=500):
 
     itot_inst = 0
     for i_subsim,folder in enumerate(dirs_subsim):
-    #Einlesen SIP-Daten aller Instanzen
+    # read SIP data of all realisations
         fp = fp_in + folder
         fu = open(fp + 'SIP_meta.dat','r')
         nr_inst = int(fu.readline())
@@ -73,19 +71,18 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=500):
 def readSingleSimulationMoments(fp_in):
 # >>>> box model version >>>>>>
 # box model version
-# liest Momente-Datei einer einzelnen Simulation ein
-# im Standardfall liegt die Datei im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die Momente-Dateien in den einzelnen Unterordnern eingelesen
+# read moments data of a single simulation
+# In the default case, all moment data are stored in the specified folder fp_in.
+# If a simulation was split into several subs-simulations, then read moment data from the various subfolders.
 
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# default case, where all SIP data lie in folder fp_in
     i_singlefolder = 1
     dirs_subsim=['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
 
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+# Cases with sub-simulations
+    # if a given simulation is divided into sub-simulations, then by definition file InstanzenMeta.dat exists
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder = 0
@@ -93,8 +90,8 @@ def readSingleSimulationMoments(fp_in):
         nr_subsims = int(fu.readline())
         nr_inst_tot = int(fu.readline())
         dirs_subsim = fu.readlines()
-        for i,s in enumerate(dirs_subsim):  # entferne trailing \n and other whitespace
-            dirs_subsim[i] = s.strip()+'/'  
+        for i,s in enumerate(dirs_subsim):  # remove trailing \n and other whitespace
+            dirs_subsim[i] = s.strip()+'/'
 
         print('nr_subsims, nr_inst_tot: ', nr_subsims, nr_inst_tot)
         print(dirs_subsim)
@@ -104,7 +101,7 @@ def readSingleSimulationMoments(fp_in):
     for i_subsim,folder in enumerate(dirs_subsim):
         fp = fp_in + folder
 
-        #Einlesen Momenten-Datei
+        # read moments data
         fu = open(fp + 'Moments_meta.dat','r')
         dV = float(fu.readline())
         skal_m = float(fu.readline())
@@ -138,8 +135,8 @@ def get_SubSimsData(fp_in):
     nr_subsims = int(fu.readline())
     nr_inst_tot = int(fu.readline())
     dirs_subsim = fu.readlines()
-    for i,s in enumerate(dirs_subsim):  # entferne trailing \n and other whitespace
-        dirs_subsim[i] = s.strip()+'/'  
+    for i,s in enumerate(dirs_subsim):  # remove trailing \n and other whitespace
+        dirs_subsim[i] = s.strip()+'/'
 
     print('nr_subsims, nr_inst_tot: ', nr_subsims, nr_inst_tot)
     print(dirs_subsim)
@@ -155,7 +152,7 @@ def get_dz(fp):
 def get_MetaData(fp):
     #get meta data of single column model simulation
     dirs_subsim=['']
-    #checke Existenz der Datei InstanzenMeta.dat, dann lese Meta.dat aus erster aufgefuehrter Subsimulation
+    #check existence of file InstanzenMeta.dat. If it exists, then read Meta.dat of first sub-simulation.
     if os.path.isfile(fp + 'InstanzenMeta.dat'):
         i_singlefolder,nr_subsims,nr_inst_tot,dirs_subsim = get_SubSimsData(fp)
 
@@ -178,20 +175,18 @@ def get_MetaData(fp):
 
 def readSingleSimulationSIPdata(fp_in, nr_sip_max=1):
 # >>>>colum model version >>>>>>
-# liest SIP-Daten einer einzelnen Simulation ein
-# im Standardfall liegen alle Daten im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die SIP-Daten in den einzelnen Unterordnern eingelesen
-# nr_sip_max is dummy argument, introduced for consistency with COLUMN =0 version of this routine
+# Read SIP data of a single simulation.
+# In the default case, all SIP data are stored in the specified folder fp_in.
+# If a simulation was split into several subs-simulations, then read SIP data from the various subfolders.# nr_sip_max is dummy argument, introduced for consistency with COLUMN =0 version of this routine
 
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# default case, where all SIP data lie in folder fp_in
     i_singlefolder = 1
     dirs_subsim=['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
 
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+# Cases with sub-simulations
+    # if a given simulation is divided into sub-simulations, then by definition file InstanzenMeta.dat exists
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder,nr_subsims,nr_inst_tot,dirs_subsim = get_SubSimsData(fp_in)
@@ -199,8 +194,8 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=1):
     nr_inst=np.zeros(nr_subsims,dtype='int')
 
     for i_subsim,folder in enumerate(dirs_subsim):
-    #Einlesen SIP-MetaDaten aller Instanzen
-    # get maximum number of SIPs per instance of full column and of a single grid box
+    # Read SIP meta data of all realisations
+    # get maximum number of SIPs of full column and of a single grid box over all realisations.
         fp = fp_in + folder
         fGVMeta = open(fp + 'SIP_meta.dat','r')
         nr_inst[i_subsim] = int(fGVMeta.readline())
@@ -220,7 +215,7 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=1):
 
     itot_inst = 0
     for i_subsim,folder in enumerate(dirs_subsim):
-    #Einlesen SIP-Daten aller Instanzen
+    # read SIP data of all realisations
         if (i_subsim == 0):
             if (i_singlefolder == 1): nr_inst_tot=nr_inst[0]
             nEK_sip_plot=np.zeros([nr_inst_tot,nr_GVplot,nr_SIPs_max])
@@ -261,19 +256,17 @@ def readSingleSimulationSIPdata(fp_in, nr_sip_max=1):
 
 def readSingleSimulationMoments(fp_in):
 # >>>>colum model version >>>>>>
-# liest Momente-Datei einer einzelnen Simulation ein
-# im Standardfall liegt die Datei im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die Momente-Dateien in den einzelnen Unterordnern eingelesen
+# read Moments.dat in folder fp_in
+# if simulation is divided in several sub-simulations, then read according files from all sub-folders
 
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# Default Case, where simulation data lie in specified folder fp_in
     i_singlefolder = 1
     dirs_subsim=['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
 
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+#Case, where multiple sub-simulations exist and data lie in sub-folders
+    #if file InstanzenMeta.dat exists, then sub-simulations exist (the sub-folders are listed in InstanzenMeta.dat)
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder,nr_subsims,nr_inst_tot,dirs_subsim = get_SubSimsData(fp_in)
@@ -282,7 +275,53 @@ def readSingleSimulationMoments(fp_in):
     for i_subsim,folder in enumerate(dirs_subsim):
         fp = fp_in + folder
 
-        #Einlesen Momenten-Datei
+        #Read meta file
+        fu = open(fp + 'Moments_meta.dat','r')
+        dV = float(fu.readline())
+        skal_m = float(fu.readline())
+        #print(dV,skal_m)
+        nr_inst = int(fu.readline())
+        print('i_subsim, nr_inst', i_subsim, nr_inst,itot_inst)
+        nr_MOMsave = int(fu.readline())
+        t_vec_MOMsave= np.array(fu.readline().split(), dtype='float' )
+        #print(t_vec_GVplot)
+        fu.close()
+
+        if (i_subsim == 0):
+            if (i_singlefolder == 1): nr_inst_tot=nr_inst
+            nz=get_nz(fp)
+            MOMsave=np.zeros([nr_inst_tot,nr_MOMsave,nz,4])
+            print('MOMsave.shape', MOMsave.shape)
+
+        fu = FK.openfile(fp + 'Moments.dat',options='rb')
+        MOMsave[itot_inst:itot_inst+nr_inst,:,:,:]=np.loadtxt(fu).reshape((nr_inst,nr_MOMsave,nz,4))
+        itot_inst += nr_inst
+    for i in range (4): MOMsave[:,:,:,i] = MOMsave[:,:,:,i]*(skal_m**i)/dV
+    return MOMsave, t_vec_MOMsave, skal_m, dV
+#<<<<<<<<<colum model version <<<<<<<<<<<<<
+#<<<<<<<< end subroutine readSingleSimulationMoments
+
+def readSingleSimulationMomentsMeanFinal(fp_in, iPlotextras=0, iTimesCross=0, thresh=None):
+# >>>>colum model version >>>>>>
+# read MomentsMean.dat in folder fp_in
+# if simulation is divided in several sub-simulations then read according files from all sub-folders
+
+# Default Case, where simulation data lie in specified folder fp_in
+    i_singlefolder = 1
+    dirs_subsim=['']
+    # nr_inst_tot not yet known
+    nr_subsims = 1
+
+#Case, where multiple sub-simulations exist and data lie in sub-folders
+    #if file InstanzenMeta.dat exists, then sub-simulations exist (the sub-folders are listed in InstanzenMeta.dat)
+
+    if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
+        i_singlefolder,nr_subsims,nr_inst_tot,dirs_subsim = get_SubSimsData(fp_in)
+
+    for i_subsim,folder in enumerate(dirs_subsim):
+        fp = fp_in + folder
+
+        #Read meta file
         fu = open(fp + 'Moments_meta.dat','r')
         dV = float(fu.readline())
         skal_m = float(fu.readline())
@@ -296,32 +335,64 @@ def readSingleSimulationMoments(fp_in):
         if (i_subsim == 0):
             if (i_singlefolder == 1): nr_inst_tot=nr_inst
             nz=get_nz(fp)
-            MOMsave=np.zeros([nr_inst_tot,nr_MOMsave,nz,4])
+            if (iTimesCross == 0):
+                MOMsave=np.zeros([4])
+            else:
+                MOMsave = np.zeros([nr_MOMsave,4])
+                indices = np.zeros([2,3],dtype='int')
 
-        fu = FK.openfile(fp + 'Moments.dat',options='rb')
-        MOMsave[itot_inst:itot_inst+nr_inst,:,:,:]=np.loadtxt(fu).reshape((nr_inst,nr_MOMsave,nz,4))
-        itot_inst += nr_inst
-    for i in range (4): MOMsave[:,:,:,i] = MOMsave[:,:,:,i]*(skal_m**i)/dV
-    return MOMsave, t_vec_MOMsave, skal_m, dV
+        fu = FK.openfile(fp + 'MomentsMean.dat',options='rb')
+        if (iTimesCross == 0):
+            if (fu is None):
+                return 0, 0, 0, 0
+            nt_time_pick = nr_MOMsave-1
+            if (iPlotextras == 10):
+                nt_time_pick = 72
+            MOMsave[:] += nr_inst*np.loadtxt(fu).reshape((nr_MOMsave,4))[nt_time_pick,:]
+        else:
+            if (fu is None):
+                return 0, 0, 0, 0
+            MOMsave[:,:] += nr_inst*np.loadtxt(fu).reshape((nr_MOMsave,4))
+
+    # Averaging over final data
+    MOMsave = MOMsave/dV/nr_inst_tot
+
+    if (iTimesCross == 0):
+        for i in range (4):
+            MOMsave[i] = MOMsave[i]*(skal_m**i)
+        return MOMsave, skal_m, dV, 1
+    else:
+        iMom = 0
+        iiMom = 0
+        for ithr in range(3):
+            print('iMom,ithr',iMom,ithr)
+            indices[iiMom,ithr] = np.where(MOMsave[:,iMom].reshape((nr_MOMsave)) < thresh[iiMom,ithr])[0][0]
+        iMom = 2
+        iiMom = 1
+        for ithr in range(3):
+            print('iMom,ithr',iMom,ithr)
+            indices[iiMom,ithr] = np.where(MOMsave[:,iMom].reshape((nr_MOMsave)) > thresh[iiMom,ithr])[0][0]
+
+        return t_vec_MOMsave[indices]
+
+
 #<<<<<<<<<colum model version <<<<<<<<<<<<<
-#<<<<<<<< end subroutine readSingleSimulationMoments
+#<<<<<<<< end subroutine readSingleSimulationMomentsMean
 
 
 def readSingleSimulationFluxes(fp_in):
 # >>>>colum model version >>>>>>
-# liest Flux-Datei einer einzelnen Simulation ein
-# im Standardfall liegt die Datei im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die Momente-Dateien in den einzelnen Unterordnern eingelesen
+# read flux data of a single simulation
+# if simulation is divided in several sub-simulations then read according files from all sub-folders
 
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# Default Case, where simulation data lie in specified folder fp_in
     i_singlefolder = 1
     dirs_subsim=['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
 
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+#Case, where multiple sub-simulations exist and data lie in sub-folders
+    #if file InstanzenMeta.dat exists, then sub-simulations exist (the sub-folders are listed in InstanzenMeta.dat)
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder,nr_subsims,nr_inst_tot,dirs_subsim = get_SubSimsData(fp_in)
@@ -354,22 +425,21 @@ def readSingleSimulationFluxes(fp_in):
 
     return FluxIn,FluxOut,FluxInAcc,FluxOutAcc,t_vec_GVplot
 #<<<<<<<<<colum model version <<<<<<<<<<<<<
-#<<<<<<<< end subroutine readSingleSimulationFluxes 
+#<<<<<<<< end subroutine readSingleSimulationFluxes
 
 
 def readSingleSimulationSIP_outfalling_data(fp_in,infalling=0):
-# im Standardfall liegen alle Daten im angegebenen Ordner fp_in
-# Wurde die Simulation in mehrere Bloecke aufgeteilt, werden die SIP-Daten in den einzelnen Unterordnern eingelesen
-    #fu_log = open(fp_in + 'LOG_out.txt','w') 
-# Standardfall, wo die Simulationsdaten im angegeben Ordner fp_in liegen
+# if simulation is divided in several sub-simulations then read according files from all sub-folders
+    #fu_log = open(fp_in + 'LOG_out.txt','w')
+# Default Case, where simulation data lie in specified folder fp_in
     i_singlefolder = 1
     dirs_subsim = ['']
-    # nr_inst_tot noch unbekannt
+    # nr_inst_tot not yet known
     nr_subsims = 1
     suffix=['out','in'][infalling]
-#Fall wo eine Simulation in mehreren Bloecken gerechnet wurde
-    #check ob zu einer Simulation aufgeteilte Subsimulationen in Unterordnern vorliegen
-    #checke Existenz der Datei InstanzenMeta.dat
+
+#Case, where multiple sub-simulations exist and data lie in sub-folders
+    #if file InstanzenMeta.dat exists, then sub-simulations exist (the sub-folders are listed in InstanzenMeta.dat)
 
     if os.path.isfile(fp_in + 'InstanzenMeta.dat'):
         i_singlefolder, nr_subsims, nr_inst_tot, dirs_subsim = get_SubSimsData(fp_in)
@@ -445,5 +515,6 @@ def readSingleSimulationSIP_outfalling_data(fp_in,infalling=0):
     return nEK_sip_out, mEK_sip_out, tEK_sip_out, nr_SIPs_out, t_vec_GVplot[nr_GVplot-1], A
 #<<<<<<<<<colum model version <<<<<<<<<<<<<
 #<<<<<<< end subroutine readSingleSimulationSIP_outfalling_data
+
 
 #GCCendif /* (COLUMN == 1) */

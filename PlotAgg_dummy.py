@@ -1,29 +1,50 @@
-#!/bin/csh
-# script that controls the plotting procedures
+# script that controls the plotting procedure
 # first create the files params_gcc.txt and params_plot.txt, which contain the preprocessor definitions and parameter definitions
 # then create pre-processed interpretable source files in the given subdir
 # then execute the Python program
 
-setenv IMODE 1
-# = 1 plotte Abbildungen einer einzelnen Simulation in plot-Unterordner
-     # setze FILEPATH auf SimOrdner
-# = 2 plotte Abbildungen mehrerer Simulationen
-    # setze FILEPATH auf Ausgabepfad und die Liste an Simordnern in filepath_input
-#the selection of the plots to be produced is given the preprocessor variables inside params_plot_gcc.txt
+import os
+import shutil
+import sys
+import re
+import glob
 
-set CurrDir =  `pwd`  #"/athome/unte_si/_data/Themen/Aggregation/PythonAggregation/"
+def intermediate_format(tmp):
+    tmp = re.sub('^.+#GCC', '#GCC', tmp,flags=re.MULTILINE)
+        #include flag re.MULTILINE, then each line is tested. otherwise only the first line of the multiline string matches the pattern;
+        #"By default in python, the ‘^’ and ‘$’ special characters (these characters match the start and end of a line, respectively) only apply to the start and end of the entire string."
+    tmp = tmp.replace('#','!comment#')
+    tmp = tmp.replace('!comment#GCC','#')
+    return(tmp)
 
-setenv FILEPATH 'SimsLong/LongK_ExpV_dt1s_FPMC/'
-setenv FILEPATH 'SimsLong/LongK_ExpV_dt10s_FPMC/'
-setenv FILEPATH 'SimsLong/LongK_ExpV_dt10s/'
-setenv FILEPATH 'Sims1D/Test_08/'
-setenv FILEPATH 'Sims1D/fulldom_zeroinflow_1km_dz20m/'
-#setenv FILEPATH 'Plots/grafik008/onlyAgg/kappa_var_nz50_inst020/'
-setenv FILEPATH 'Sims1D/Verification_WM2DCOL/SediAgg_WM3/nz50_inst020_k40_dz10_2h_DNC0.7_LWCfix/Instanz_00_03/'
-setenv FILEPATH 'Sims1D/Verification/SediAgg/nz50_inst20_k05_dz10_csh/'
-echo $CurrDir
+def py_format(tmp):
+    tmp = tmp.replace('!comment#','#')
+    return(tmp)
 
-cat > params_plot_gcc.txt << '\eof'
+def py_format_file_inplace(fn):
+    f = open(fn,'r')
+    c = f.read()
+    f.close()
+    c_pyf = py_format(c)
+    f = open(fn,'w')
+    f.write(c_pyf)
+    f.close()
+
+IMODE  = 1
+# = 1 generate plots of a single simulation. The plots will be stored in the subfolder "plot" of the according simulation folder FILEPATH
+# = 2 generate summary plots of multiple simulations
+    # FILEPATH determines the output path of the figure file and the list of simulations is given in list filepath_input
+#the selection of the plots to be produced is given by preprocessor variables inside params_plot_gcc.txt
+
+iverboseoutput = 1
+
+CurrDir =  os.getcwd()
+
+FILEPATH = 'Sims1D/Verification/SediAgg/nz50_inst20_k05_dz10_py/'
+
+print(CurrDir)
+
+output_to_file_params_plot_gcc = """
 #define PLOT  /* don't touch */
 #/* the following PPDs control which plots are generated.*/
 #define MOM_meanTD 1   /* TD = TotalDomain, average over all instances, optionally plot all ensemble members
@@ -52,7 +73,7 @@ cat > params_plot_gcc.txt << '\eof'
 #define STD 0 /* = 1 add standard deviation to plots of MOM_meanTD, MOM_prof and FLUX_time
 #                = 2 add 10, 90 percentile to plots of MOM_meanTD, MOM_prof and FLUX_time*/
 #define KERNEL 1  /* =0 Golovin kernel, =1 Long kernel, =2 Hall kernel, =3 Produkt Kernel*/
-#define IMODE %IMODE%
+#define IMODE {}
 #define DISCRETE 0
 #define IREF 9
 # /*  = 0 no reference solution,
@@ -61,11 +82,16 @@ cat > params_plot_gcc.txt << '\eof'
 #     = 3 Alfonso product kernel reference solution
 #     = 9 read Bott/Wang(?) simulation data, set path fp_ref */
 #define COLUMN 1  /* = 0 classical box model, = 2 column model with additional sedimentation */
-'\eof'
+""".format(IMODE)
 
-sed --in-place=tmp "s:%IMODE%:${IMODE}:g" params_plot_gcc.txt
+#output_to_file_params_plot_gcc.replace("%IMODE%")
 
-cat > params_plot.txt  << '\eof'
+f = open('params_plot_gcc.txt','w') #verbose output
+f.write(output_to_file_params_plot_gcc) #verbose output
+f.close() #verbose output
+
+
+output_to_file_params_plot = """
 import math
 
 #----------- parameter definitions---------------------------
@@ -84,7 +110,7 @@ Sim_cycler='Line'
 #GCCif (IMODE > 1)
 
 #grafik008/SediAgg
-fp_sf='%CURRDIR%'+ '/Sims1D/'
+fp_sf='{}'+ '/Sims1D/'
 filepath_input =    [ fp_sf + 'Verification/NoSedi_LinSamp_LL2/nz50_inst20_k'+ i + '_dz10/' for i in ['05','10','20','40','60', '100', '200' ]] + \
                     [ fp_sf + 'Verification/SediAgg_LinSamp_LL2/nz50_inst20_k'+ i + '_dz10/' for i in ['05','10','20','40','60', '100','200' ]] + \
                     [ fp_sf + 'Verification/NoSedi_INTPOL1/nz50_inst20_k'+ i + '_dz10/' for i in ['05','10','20','40','60', '100', '200' ]] + \
@@ -204,7 +230,7 @@ fp_ref  = [fp_Wang + "testcases_onlyagg/test04_iscal16/"]
 nzREFmax=10
 ntREFmax=200
 nrsimREF=len(fp_ref)
-labelREF=['LWC1.5', 'LWC2.0','LWC2.5' ]
+#labelREF=['LWC1.5', 'LWC2.0','LWC2.5' ]
 #GCCendif /* (IREF == 9) */
 #GCCendif /* (DISCRETE == 0) */
 
@@ -252,9 +278,15 @@ b_golovin=b_original*(1e-6)*(1e3)*dt*dVi #  SI units (m^3*kg^(-1)*(s^(-1))  * s/
 C_original=5.49e10   # in (cm^3)*(g^(-2))*(s^(-1)) bzw auch (m^3*kg^(-2)*(s^(-1))
 
 #GCCendif /* (KERNEL == 3) */
-'\eof'
+""".format(CurrDir)
 
-sed --in-place=tmp "s:%CURRDIR%:${CurrDir}:g" params_plot.txt
+#sed --in-place=tmp "s:%CURRDIR%:${CurrDir}:g" params_plot.txt
+
+f = open('params_plot.txt','w') #verbose output
+f.write(output_to_file_params_plot) #verbose output
+f.close() #verbose output
+
+
 #--------------------------------generation of parameter files finished----------------------------------------
 
 
@@ -263,66 +295,103 @@ sed --in-place=tmp "s:%CURRDIR%:${CurrDir}:g" params_plot.txt
 # the preprocessed files will be generated and executed in filepath
 
 #list of source code files (separate lists for files with/without preprocessor directives)
-set list_module_gcc_files = "Kernel.gcc.py Referenzloesung.gcc.py SIPinit.gcc.py PlotResults.gcc.py PlotSim.gcc.py InputOutput.gcc.py"
-set list_module_nogcc_files = "Misc.nogcc.py"
+list_module_gcc_files = ('Kernel.gcc.py',  'Referenzloesung.gcc.py', 'SIPinit.gcc.py', 'PlotResults.gcc.py', 'PlotSim.gcc.py', 'InputOutput.gcc.py')
+list_module_nogcc_files = ('Misc.nogcc.py',) # a 1-element needs a comma
 
-setenv FILEPATH_OUT $FILEPATH'/'
-if ($IMODE == 1) setenv FILEPATH_OUT $FILEPATH'/plot/'
+FILEPATH_OUT = FILEPATH + '/'
+if (IMODE == 1):
+    FILEPATH_OUT = FILEPATH + '/plot/'
 
-echo 'current working directory'
-echo $FILEPATH_OUT
+print('current working directory:\n', FILEPATH_OUT)
+
     #copy files
-mkdir -p $FILEPATH_OUT
-mv params_plot.txt params_plot_gcc.txt $FILEPATH_OUT
-cp $list_module_gcc_files $FILEPATH_OUT
-cp $list_module_nogcc_files $FILEPATH_OUT
-cp $0 $FILEPATH_OUT
-pwd
-cd $FILEPATH_OUT
-pwd
-    #pre-process all Python code that is listed in list_module_gcc_files
-    #workaround for application of gcc necessary, as both GCC and Python use # to indicate directive and comments respectively
-    #temporarily use a different character sequence instead of # for Python comments
-    #additionally, GCC directives in the .gcc.py files use #GCC as marker
+if not os.path.isdir(FILEPATH_OUT):
+    os.makedirs(FILEPATH_OUT)
 
-sed -re 's/^.+#GCC/#GCC/' params_plot.txt > params_plot.tmp.tmptxt
-sed 's/#/\!comment#/g;s/\!comment#GCC/#/g;' params_plot.tmp.tmptxt > params_plot.tmptxt
-cat params_plot_gcc.txt params_plot.tmptxt > params_plot.fpp
-gcc -E -P -C params_plot.fpp > params_plot.txt
+for file2move in ('params_plot.txt','params_plot_gcc.txt'):
+    # if dst is given as folder path plus filename, then move overwrites a potentially existing file with the same name in the dst folder
+    shutil.move(file2move, os.path.join(FILEPATH_OUT, file2move))
 
-foreach file_gcc_py  ($list_module_gcc_files)
-    echo process file $file_gcc_py
-    set base = `basename $file_gcc_py .gcc.py`
-    sed -re 's/^.+#GCC/#GCC/' $file_gcc_py > ${base}.tmp.tmptxt
-    sed 's/#/\!comment#/g;s/\!comment#GCC/#/g;' ${base}.tmp.tmptxt > ${base}.tmptxt
-    cat params_plot_gcc.txt ${base}.tmptxt > ${base}.fpp
-    gcc -E -P -C ${base}.fpp > ${base}.tmptxt
-    sed 's/\!comment#/#/g;' ${base}.tmptxt > ${base}.py
-    rm $file_gcc_py
-end
-sed --in-place 's/\!comment#/#/g;' params_plot.txt
+name_current_script =sys.argv[0]
+filelist2copy = list_module_gcc_files + \
+                list_module_nogcc_files + \
+                (name_current_script, )
+for file2copy in filelist2copy:
+    print('copy file: ', file2copy, FILEPATH_OUT)
+    shutil.copy(file2copy, FILEPATH_OUT)
 
-    #simply copy all Python code that is listed in list_module_gcc_files
-foreach file_nogcc_py  ($list_module_nogcc_files)
-     echo copy file $file_nogcc_py
-     set base = `basename $file_nogcc_py .nogcc.py`
-     mv ${base}.nogcc.py ${base}.py
-end
+os.chdir(FILEPATH_OUT)
+
+#pre-process all Python code that is listed in list_module_gcc_files
+#workaround for application of gcc necessary, as both GCC and Python use # to indicate directive and comments respectively
+#temporarily use a different character sequence instead of # for Python comments
+#additionally, GCC directives in the .gcc.py files use #GCC as marker
+tmp = intermediate_format(output_to_file_params_plot)
+
+if (iverboseoutput == 1):
+    f = open('params_plot.tmptxt','w') #verbose output
+    f.write(tmp) #verbose output
+    f.close() #verbose output
+
+
+f = open('params_plot.fpp','w')
+f.write(output_to_file_params_plot_gcc+tmp)
+f.close()
+os.system('gcc -E -P -C params_plot.fpp > params_plot.txt')
+
+for file_gcc_py in list_module_gcc_files:
+    print('process file {}'.format(file_gcc_py))
+    filebasename = file_gcc_py.replace('.gcc.py','')
+    f = open(file_gcc_py,'r')
+    content = f.read()
+    f.close()
+    content_imf = intermediate_format(content)
+        #suffix _imf = intermediate format
+
+    if (iverboseoutput == 1):
+        f = open(filebasename+'.tmptxt','w') #verbose output
+        f.write(content_imf) #verbose output
+        f.close() #verbose output
+
+    f = open(filebasename+'.fpp','w')
+    f.write(output_to_file_params_plot_gcc+content_imf)
+    f.close()
+
+    #gcc -E -P -C ${base}.fpp > ${base}.tmptxt
+    command_eval = 'gcc -E -P -C {0}.fpp -o {0}.tmptxt'.format(filebasename)
+    #command_eval = 'gcc -E -P -C {0}.fpp -o {0}.tmptxt'.format(FILEPATH_OUT+filebasename)
+    #print('call preprocessor with command:\n', command_eval)
+    os.system(command_eval)
+
+    f = open(filebasename+'.tmptxt','r')
+    content = f.read()
+    f.close()
+
+    content_pyf = py_format(content)
+    f = open(filebasename+'.py','w')
+    f.write(content_pyf)
+    f.close()
+    os.remove(file_gcc_py)
+
+py_format_file_inplace('params_plot.txt')
+
+    #simply copy all Python source files that are listed in list_module_gcc_files
+for file_nogcc_py in list_module_nogcc_files:
+     print('copy file {}'.format(file_nogcc_py))
+     filebasename = file_nogcc_py.replace('.nogcc.py','')
+     os.rename(filebasename+'.nogcc.py', filebasename+'.py')
+
+#preparation of source code finished----------------------------------------
 
 # start program
-echo "start execution"
-# set startdate = `date`
-pwd
+print('start execution')
 
-#use local python anaconda installation
 #### CHANGE: call python 3 with argument PlotResults.py
-/net/lx116/export/home/unte_si/anaconda3/bin/python3 PlotResults.py
-#
-# set enddate = `date`
-
-#echo "execution start and end time"
-# echo $startdate
-# echo $enddate
+os.system('/net/lx116/export/home/unte_si/anaconda3/bin/python3 PlotResults.py')
+# os.system('/net/lx116/export/home/unte_si/anaconda3/bin/python3 caller_function.py')
 
 #clean up
-rm *.fpp *.s *.tmptxt
+print("Clean Up")
+filelist_tobedeleted = glob.glob("*.fpp") + glob.glob("*.s") + glob.glob("*.tmptxt")
+for file in filelist_tobedeleted:
+    os.remove(file)

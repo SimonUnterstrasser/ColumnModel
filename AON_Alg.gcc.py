@@ -20,17 +20,17 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 fLog_Combs=None):
     #z old position
     #zn new position
-    #it is assumed that the SIP list is sorted by z. smaller z first!
+    #it is assumed that the SIP list is sorted by z. smallest z first!
 #GCCendif /* (WELLMIXED > 0)*/
 
-    #cck            : Kernel-Matrixwerte
+    #cck            : matrix of kernel values
     #nr_SIPs        :
-    #nEK_sip_tmp    : Vektor mit SIP-Gewichtsfaktor (will be multiplied by skal_n in KCE)
-    #mEK_sip_tmp    : Vektor mit SIP-Troepfchenmassen (will be multiplied by skal_m in KCE)
-    #m_low          : kleinste Masse fuer die Kernelwert in Matrix gegeben ist
-    #eta_indize     : Anzahl der Kernelwerte in Matrix pro Massendekade
+    #nEK_sip_tmp    : array with SIP weights (will be multiplied by skal_n in KCE)
+    #mEK_sip_tmp    : array with SIP single hdyrometeor mass (will be multiplied by skal_m in KCE)
+    #m_low          : lowest mass represented in kernel matrix
+    #eta_indize     : number of kernel matrix values for tenfold mass increase
     #m_kernel       : mass grid on which kernel values are given
-    #count_colls    : 10-array: counts the number of collections, only active if PPD COUNT_COLLS = 1
+    #count_colls    : array with ncoll entries: counts the number of collections, only active if PPD COUNT_COLLS = 1
 
 #GCCif (COUNT_COLLS == 1)
     ncoll=count_colls.size
@@ -50,11 +50,11 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
     np.clip(indize,0,398,out=indize)
 
         #GCCif (KERNEL_INTPOL == 1)
-    indize_floored=np.floor(indize).astype(int)  # floor liefert float values, in int umwandeln, damit die Werte als Indizes verwendet werden koennen
+    indize_floored=np.floor(indize).astype(int)  # floor returns float values, have to be converted explicitly into integer in order to be used as indices
         #GCCendif /* (KERNEL_INTPOL == 1) */
         #GCCif (KERNEL_INTPOL == 0)
-    indize_floored=np.floor(indize+0.5).astype(int)  # floor liefert float values, in int umwandeln, damit die Werte als Indizes verwendet werden koennen
-    #nun zentriert
+    indize_floored=np.floor(indize+0.5).astype(int)
+    #now centered around given mass grid values
         #GCCendif /* (KERNEL_INTPOL == 0) */
     #GCCendif  /* (KERNEL_INTPOL <= 1) */
     #GCCif (KERNEL_INTPOL == 2) /* linear mass bin*/
@@ -126,14 +126,13 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
     for i_comb in range(0,nr_Combs):
             i = index_list[i_comb * 2]
             j = index_list[i_comb * 2 + 1]
-            #GCCif (LINEAR_LIMIT == 1)
-            i_limit_active=0
-            #GCCendif /* (LINEAR_LIMIT == 1) */
+            i_limit_active = 0
+
 #GCCendif /* (LINEAR == 1) */
 
         #GCCif (KERNEL == 1 || KERNEL == 2)
             #GCCif (KERNEL_INTPOL == 1)
-                #Hall/Long Kernel Bilineare Interpolation
+                #Hall/Long kernel bilinear interpolation
             iact=indize[i]
             jact=indize[j]
             iiu=indize_floored[i]
@@ -163,10 +162,10 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
             mEK_agg_tmp = mEK_sip_tmp[i]+mEK_sip_tmp[j]
         #GCCif (LINEAR == 1)
             nEK_agg_tmp = nEK_agg_tmp * factor_upscale
-            #GCCif (LINEAR_LIMIT == 1)
+            #GCCif (LINEAR_LIMIT > 0)
             tmp_max = max(nEK_sip_tmp[i],nEK_sip_tmp[j])
             if (nEK_agg_tmp > tmp_max):
-                #print('oha',nEK_agg_tmp , factor_upscale,nEK_sip_tmp[i],nEK_sip_tmp[j])
+
                 i_limit_active=1
                 #GCCif (AGG_MC == 1)
                 print('not yet tested!')
@@ -175,15 +174,18 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #GCCendif  /*(AGG_MC == 1) */
                 #GCCif (AGG_MC == 2)
                 print('A n_agg larger than n_i and n_j', i, j, nEK_agg_tmp, nEK_sip_tmp[i], nEK_sip_tmp[j])
+                #GCCif (LINEAR_LIMIT == 1)
                 nEK_agg_tmp = .99 * tmp_max
+                #GCCendif /* (LINEAR_LIMIT  == 1) */
                     #GCCif (COUNT_COLLS == 1)
                 count_colls[ncoll-1] += 1
                     #GCCendif  /* (COUNT_COLLS == 1) */
                 #GCCendif  /*(AGG_MC == 2) */
-            #GCCendif /* (LINEAR_LIMIT == 1) */
+            #GCCendif /* (LINEAR_LIMIT > 0) */
         #GCCendif /* (LINEAR == 1) */
 
-        #GCCif (DISCRETE <= 1)
+        #GCCif (LINEAR == 0)
+        # always use 0.99 limiter for QuadSamp
             tmp_max = max(nEK_sip_tmp[i], nEK_sip_tmp[j])
             if (nEK_agg_tmp > tmp_max):
                 print('B n_agg larger than n_i and n_j', i, j, nEK_agg_tmp, nEK_sip_tmp[i], nEK_sip_tmp[j])
@@ -191,7 +193,9 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                     #GCCif (COUNT_COLLS == 1)
                 count_colls[ncoll-1] += 1
                     #GCCendif  /* (COUNT_COLLS == 1) */
+        #GCCendif /* (LINEAR == 0) */
 
+        #GCCif (DISCRETE <= 1)
             #GCCif (WARN >= 1)
             nEK_save=(nEK_sip_tmp[i],nEK_sip_tmp[j])
             #GCCendif /* (WARN >= 1) */
@@ -223,7 +227,7 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
             c_mcCEIL = math.ceil(c_mc)
             p_col=c_mc-math.floor(c_mc)
             #GCCendif /* (SPEED_ZERO == 1) */
-            #Erzeugung Zufallszahl (auf Grundlage des Mersenne Twisters)
+            #generate random number(s) based on Mersenne Twisters algorithm
             #GCCif (SPEED_VECTOR == 0)
             pkrit=random.random()
             #GCCendif /* (SPEED_VECTOR == 0) */
@@ -256,9 +260,9 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                     i1=i; i2=j
                 else:
                     i1=j; i2=i
-                #i1 ist das SIP mit kleinerem Gewichtsfaktor
+                #i1 is the index of the SIP with the smaller weighting factor
             #GCCif (AGG_MC == 0)
-            #keine Multiple Collection, einfache Kollektion also n_agg wird auf nEK_sip_tmp[i1] gedeckelt
+                #no multiple collection are considered, hence n_agg is limited and attains value nEK_sip_tmp[i1]
                 nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_sip_tmp[i1]
                 mEK_sip_tmp[i1]=mEK_agg_tmp
                 #GCCif (COUNT_COLLS == 1)
@@ -266,7 +270,7 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #GCCendif  /* (COUNT_COLLS == 1) */
             #GCCendif  /*(AGG_MC == 0) */
             #GCCif (AGG_MC == 1)
-            #Integer Multiple Collection, n_agg ist ganzzahliges Vielfaches von nEK_sip_tmp[i1], c_mc wird entweder auf- oder abgerundet
+                #Integer Multiple Collection, n_agg will be set to c * nEK_sip_tmp[i1], where c is an integer. c_mc is rounded up/down.
                 if(pkrit < p_col):
                     c_mc_pick = c_mcCEIL
                     if (c_mc_pick * nEK_sip_tmp[i1] > tmp_max):
@@ -282,13 +286,29 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #GCCendif  /* (COUNT_COLLS == 1) */
             #GCCendif  /*(AGG_MC == 1) */
             #GCCif (AGG_MC == 2)
-            #Floating Point Multiple Collection, das berechnete c_mc wird verwendet, diese Operation generiert nicht-ganzzahlige Vielfache der Ausgangsmassen
+                #Floating Point Multiple Collection, no rounding of c_mc required
+                # note that this operation produces non-integer multiple of the initial SIP masses
+                # hence, this option is not intended to be used with discrete (integer) SIP masses
+                #GCCif (LINEAR_LIMIT*LINEAR == 2 || LINEAR_LIMIT*LINEAR == 3)
+                # first treat special case where n_agg is greater than both weighting factors
+                if (i_limit_active == 1):
+                    mEK_sip_tmp[i1] = (mEK_sip_tmp[i1]*nEK_sip_tmp[i1] + mEK_sip_tmp[i2]*nEK_sip_tmp[i2])/nEK_sip_tmp[i1]
+                    mEK_sip_tmp[i2] = mEK_sip_tmp[i1]
+                    #GCCif (LINEAR_LIMIT == 2)
+                    nEK_sip_tmp[i1] = 0.5*nEK_sip_tmp[i1]
+                    nEK_sip_tmp[i2] = nEK_sip_tmp[i1]
+                    #GCCendif /* (LINEAR_LIMIT == 2)*/
+                    #GCCif (LINEAR_LIMIT == 3)
+                    nEK_sip_tmp[i1] = 0.4 * nEK_sip_tmp[i1] #40% contribution
+                    nEK_sip_tmp[i2] = 1.5 * nEK_sip_tmp[i1] #60% contribution
+                    #GCCendif /* (LINEAR_LIMIT == 3)*/
+                    c_mc = 0
+                    nEK_agg_tmp = 0
+                #GCCendif /* (LINEAR_LIMIT*LINEAR == 2 || LINEAR_LIMIT*LINEAR == 3) */
+
                 mEK_sip_tmp[i1]=(mEK_sip_tmp[i1]+c_mc*mEK_sip_tmp[i2])
                 #nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_sip_tmp[i1]*c_mc
                 nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_agg_tmp
-                #GCCif (LINEAR_LIMIT*LINEAR == 1)
-                #if (i_limit_active==1): nEK_sip_tmp[i2]=0   # avoids that due to numerical rounding errors a tiny non-zero value is established.
-                #GCCendif /* (LINEAR_LIMIT*LINEAR == 1) */
                 #GCCif (COUNT_COLLS == 1)
                 index=min([math.ceil(c_mc -0.5),ncoll-3])  # 1 < c_mc < 1.5 -> Index 1; 1.5 < c_mc < 2.5 -< Index 2
                 #GCCendif  /* (COUNT_COLLS == 1) */
@@ -301,21 +321,22 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #in case of no interpolation of hydrodynamic kernel, SIPs with similar radii pick diagonal element iiu=iju (which is zero!).
                 count_colls[ncoll-2] += 1
                 #GCCendif  /* (COUNT_COLLS == 1) */
-            #GCCif (WARN >= 1)
+            #GCCif ((WARN >= 1) || ((COUNT_COLLS == 1) && (LINEAR_LIMIT == 0 )))
             if (nEK_sip_tmp[i] < 0.0) or (nEK_sip_tmp[j] < 0.0):
-                print('nEK_sip_tmp regular:', i,j,i1,i2, nEK_sip_tmp[i],nEK_sip_tmp[j],c_mc,c_mcCEIL,nEK_save,nEK_agg_tmp)
+                count_colls[ncoll-1] += 1
+                print('nEK_sip_tmp regular:', i,j,i1,i2, nEK_sip_tmp[i],nEK_sip_tmp[j],nEK_agg_tmp)
             #GCCendif /* (WARN >= 1) */
         #GCCendif /* (DISCRETE <= 1) */
 
         #GCCif (DISCRETE == 2)
-        #only SIP weighting factor of 1 (and 0) occur
-        #-> multiple collections are senseless
-        #if collection occurs, then set SIP j to zero and exit iteration over inner loop over j
+            #only SIP weighting factor of 1 (and 0) occur
+            #-> multiple collections are senseless
+            #if collection occurs, then set SIP j to zero and exit iteration over inner loop over j
 
             if (nEK_sip_tmp[j] > 0):  # nEK_sip_tmp[i] is non-zero, only SIP j can be zero
                 p_col = nEK_agg_tmp
 
-                #Erzeugung Zufallszahl (auf Grundlage des Mersenne Twisters)
+                #generate random number(s) based on Mersenne Twisters algorithm
                 pkrit=random.random()
 
                 if(p_col>pkrit):
@@ -336,44 +357,37 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
     #nrCombs=0.5*nr_SIPs*(nr_SIPs-1)
     #print(nOverTakes, nrCombs,nOverTakes/nrCombs)
     ##GCCendif /* (WELLMIXED > 0)*/
+
     nOverTakes_pBC=0
     ##GCCif (WELLMIXED == 3 && INFLUX_TOP == 2)
-    # version with full column overtakes and periodic boundary conditions
-    #check collisions across lower boundary in this second separate pass of the SIP list
-    #print(type(zn))
-    #print(zn.shape)
-    #print(zn.size)
-    #nOverTakes_pBC=0
-    #find all SIPs that cross the lower boundary:
+        #version with full column overtakes and periodic boundary conditions
+        #check collisions across lower boundary in this second separate pass of the SIP list
+
+        #find all SIPs that cross the lower boundary:
     index_list_crossingSIPs = np.where(zn<0)[0]
     #print('index_list_crossingSIPs')
     #print(index_list_crossingSIPs)
-    #print('zn',zn[index_list_crossingSIPs])
     nr_SIPs_crossing = len(index_list_crossingSIPs)
     #print('nr_SIPs_crossing',nr_SIPs_crossing)
     #all other SIPs are potential collision partners.
     index_list_candidateSIPs = np.where(zn>0)[0]
     nr_SIPs_candidates=nr_SIPs - nr_SIPs_crossing
     #Note that SIP collisions between two SIPs that both cross the lower boundary was already tested in the original pass
-    #print('nr_SIPs_WM3_LBC',nr_SIPs_crossing,nr_SIPs_candidates)
-    #print('ABC',type(index_list_crossingSIPs))
-    #print('DEF',type(index_list_candidateSIPs))
 
     for i in index_list_crossingSIPs:
         for j in index_list_candidateSIPs:
             #GCCif (WARN >= 1)
             nEK_save=(nEK_sip_tmp[i],nEK_sip_tmp[j])
             #GCCendif /* (WARN >= 1) */
-            #print('i,j', i,j)
             # upward-shift of all crossing SIPs by zCol
-            # it is sure that z[i] > zCol > z[j]
+            # it is guaranteed that z[i] > zCol > z[j]
             # so the only necesary test is, if zn[i]+zCol< zn[j], skip iteration if this is not the case!
             nrCombsTested += 1
             if ((zn[i]+zCol) > zn[j]): continue
             nOverTakes_pBC += 1
-            #print('i,j', i,j,zn[i]+zCol, zn[j])
+
             #GCCif (KERNEL_INTPOL == 1)
-                #Hall/Long Kernel Bilineare Interpolation
+                #Hall/Long kernel bilinear interpolation
             iact=indize[i]
             jact=indize[j]
             iiu=indize_floored[i]
@@ -432,7 +446,7 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
             #GCCendif  /* (COUNT_COLLS == 1) */
             #GCCendif /* (SPEED_ZERO == 1) */
 
-            #Erzeugung Zufallszahl (auf Grundlage des Mersenne Twisters)
+            #generate random number(s) based on Mersenne Twisters algorithm
             pkrit=np.random.random()
             if (c_mcCEIL == 1):
                 if(p_col>pkrit):
@@ -458,10 +472,9 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                     i1=i; i2=j
                 else:
                     i1=j; i2=i
-                #i1 ist das SIP mit kleinerem Gewichtsfaktor
+                #i1 is the index of the SIP with the smaller weighting factor
             #GCCif (AGG_MC == 0)
-            #keine Multiple Collection, einfache Kollektion also n_agg wird auf nEK_sip_tmp[i1] gedeckelt
-                #print('Oha', nEK_sip_tmp[i],nEK_sip_tmp[j],nEK_agg_tmp,c_mc)
+                #no multiple collection are considered, hence n_agg is limited and attains value nEK_sip_tmp[i1]
 
                 nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_sip_tmp[i1]
                 mEK_sip_tmp[i1]=mEK_agg_tmp
@@ -470,7 +483,7 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #GCCendif  /* (COUNT_COLLS == 1) */
             #GCCendif  /*(AGG_MC == 0) */
             #GCCif (AGG_MC == 1)
-            #Integer Multiple Collection, n_agg ist ganzzahliges Vielfaches von nEK_sip_tmp[i1], c_mc wird entweder auf- oder abgerundet
+                #Integer Multiple Collection, n_agg will be set to c * nEK_sip_tmp[i1], where c is an integer. c_mc is rounded up/down.
                 if(pkrit<p_col):
                     c_mc_pick=c_mcCEIL
                     if (c_mc_pick * nEK_sip_tmp[i1] > tmp_max):
@@ -486,13 +499,12 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
                 #GCCendif  /* (COUNT_COLLS == 1) */
             #GCCendif  /*(AGG_MC == 1) */
             #GCCif (AGG_MC == 2)
-            #Floating Point Multiple Collection, das berechnete c_mc wird verwendet, diese Operation generiert nicht-ganzzahlige Vielfache der Ausgangsmassen
+                #Floating Point Multiple Collection, no rounding of c_mc required
+                # note that this operation produces non-integer multiple of the initial SIP masses
+                # hence, this option is not intended to be used with discrete (integer) SIP masses
                 mEK_sip_tmp[i1]=(mEK_sip_tmp[i1]+c_mc*mEK_sip_tmp[i2])
-                #nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_sip_tmp[i1]*c_mc
                 nEK_sip_tmp[i2]=nEK_sip_tmp[i2]-nEK_agg_tmp
-                #GCCif (LINEAR_LIMIT*LINEAR == 1)
-                if (i_limit_active==1): nEK_sip_tmp[i2]=0
-                #GCCendif /* (LINEAR_LIMIT*LINEAR == 1) */
+
                 #GCCif (COUNT_COLLS == 1)
                 index=min([math.ceil(c_mc -0.5),ncoll-3])  # 1 < c_mc < 1.5 -> Index 2; 1.5 < c_mc < 2.5 -< Index 3
                 #GCCendif  /* (COUNT_COLLS == 1) */
@@ -509,20 +521,12 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
             if (nEK_sip_tmp[i] < 0.0) or (nEK_sip_tmp[j] < 0.0):
                 print('nEK_sip_tmp regular:', i,j, nEK_sip_tmp[i],nEK_sip_tmp[j],c_mc,nEK_save,nEK_agg_tmp)
             #GCCendif /* (WARN >= 1) */
-
         #GCCendif /* (DISCRETE <= 1) */
-    #print('nr_SIPs_WM3_LBC',nr_SIPs_crossing, nr_SIPs_candidates,
-          #nOverTakes_pBC, nOverTakes_pBC/(nr_SIPs_crossing*nr_SIPs_candidates))
 
     ##GCCendif /* (WELLMIXED == 3 && INFLUX_TOP == 2)*/
 
     ##GCCif (WELLMIXED > 0)
     nrCombs=nr_Combs  #   0.5*nr_SIPs*(nr_SIPs-1)
-    ##GCCif (WELLMIXED < 3)
-    #print(nOverTakes, nrCombs,nOverTakes/nrCombs)
-    ##GCCelse
-    #print(nOverTakes,nOverTakes_pBC, nrCombs,nOverTakes/nrCombs,nOverTakes_pBC/nrCombs)
-    ##GCCendif /*(WELLMIXED < 3) */
     ##GCCendif /* (WELLMIXED > 0)*/
 
     #GCCif (COUNT_COLLS == 1)
@@ -607,9 +611,8 @@ def Aggregation(nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,z,zn,count_colls,cck,m_low,eta_i
         print('min_nEK: ', min_nEK)
     #GCCendif /* (WARN >= 1) */
 
-
     return ibreak
-#end subroutine Aggregation(dt,nr_SIPs,nEK_sip_tmp,mEK_sip_tmp,dV,count_colls,cck,m_low,eta_indize)
+#end subroutine Aggregation
 
 
 

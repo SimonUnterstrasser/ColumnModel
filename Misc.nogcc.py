@@ -1,9 +1,14 @@
 import numpy as np
 
+"""
+Mapping SIP to Bin
+"""
+
+#Mapping of SIP ensemble onto a bin grid
+#SIP ensemble (of one realisation) with nr_SIPs SIP defined by nEK_sip and mEK_sip
+#Properties of the bin grid are specified by n10_plot, r10_plot, min10_plot
+
 def MapSIPBin(nEK_sip,mEK_sip,nr_SIPs,n10,r10,min10):
-#Mapping des SIP-Ensembles auf ein Bingitter
-#SIP-Ensemble (nur eine Instanz) mit nr_sip Teilchen gegeben durch nEK_sip, mEK_sip
-#Eigenschaften des Bingitters gegeben durch n10_plot, r10_plot, min10_plot
     n= n10 * r10
     mfix=np.zeros(n)
     mdelta=np.zeros(n)
@@ -12,23 +17,23 @@ def MapSIPBin(nEK_sip,mEK_sip,nr_SIPs,n10,r10,min10):
         mfix[i]=10**((i-1)/n10+min10)
         mdelta[i-1]=mfix[i]-mfix[i-1]
     if (mfix[-1] < max(mEK_sip[0:nr_SIPs])):
-        print("Achtung. Gitter zu klein ",mfix[-1] , max(mEK_sip[0:nr_SIPs]))
+        print("Note that the defined bin grid does not cover the full SIP ensemble ", mfix[-1] , max(mEK_sip[0:nr_SIPs]))
 
-    #Einordnen in das Bingitter
+    #sort SIPs by size and check to which bin each SIP contributes
     z=1
     mEK_bin_tot=np.zeros(n)
     nEK_bin_ord=np.zeros(n)
-    nEK_sip_tmp=nEK_sip[0:nr_SIPs]  #int(nr_SIPs) entfernt
+    nEK_sip_tmp=nEK_sip[0:nr_SIPs]
     mEK_sip_tmp=mEK_sip[0:nr_SIPs]
 
     per=np.argsort(mEK_sip_tmp)
-    #print(mfix[-1],max(mEK_sip_tmp))
+
     for i in range(0,nr_SIPs):
         while(mfix[z]<mEK_sip_tmp[per[i]]):
             z=z+1
 
         nEK_bin_ord[z-1]=nEK_bin_ord[z-1]+nEK_sip_tmp[per[i]]/mdelta[z-1]
-        #Hier entweder Binmittelpunkte (bei log mus noch mfix[i]=10^((i-1+0.5)/n10+min10)) oder so aehnlich abgeaendert werden
+        #Hier entweder Binmittelpunkte (bei log muss noch mfix[i]=10^((i-1+0.5)/n10+min10)) oder so aehnlich abgeaendert werden
         if(nEK_bin_ord[z-1]!=0):
             mEK_bin_tot[z-1]=mEK_bin_tot[z-1]+nEK_sip_tmp[per[i]]*mEK_sip_tmp[per[i]]
         else:
@@ -43,22 +48,23 @@ def MapSIPBin(nEK_sip,mEK_sip,nr_SIPs,n10,r10,min10):
 #end subroutine MapSIPBin(nEK_sip,mEK_sip,nr_SIPs,n10,r10,min10):
 
 def CountSIPs(nEK_sip,mEK_sip,nr_SIPs,nplot):
+    # only for discrete applications with integer weights
     nEK_bin_plot=np.zeros(nplot)
     #print(max(mEK_sip),nplot)
     if (max(mEK_sip) > nplot):
         print('---------- Achtung: ', max(mEK_sip), nplot)
     for i in range(nr_SIPs):
-        nEK_bin_plot[int(mEK_sip[i])-1] += nEK_sip[i]   # verwende zur Sicherheit int-Umwandlung (int(mEK_sip[i])), da beim Einlesen des Daten der Typ auf Float weggelegt wird
+        nEK_bin_plot[int(mEK_sip[i])-1] += nEK_sip[i]
 
     return nEK_bin_plot
 #end subroutine CountSIPs(nEK_sip,mEK_sip,nr_SIPs,nplot)
 
 def CIO_MOMmean(data_in=None,fp_in=None,fp_out=None,skal_m=1.0,dV=1.0,ikeep1D=None,igetSTD=0,iexcludetop=0):
-    #CIO = "Compute or Input/Read mean Moments" and Output the data 
+    #CIO = "Compute or Input/Read mean Moments" and Output the data
 
-    #Berechne gemittelte Momente
-    #Input: Momente aller Instanzen (entweder gegeben durch Array data_in oder Einlesen aus Datei in Ordner fp_in)
-    #Output: gebe Array zurueck und schreibe zustzlich in Datei wenn fp_out gegeben ist.
+    #Compute mean moments
+    #Input: moment data of all realisations (given either by array data_in or read from files in folder  fp_in)
+    #Output: return an array with averaged moments. Additionally write the data to a file, if  folder name fp_out is specified.
 
     #in box model simulations data_in.ndim is 3 and the average is taken over all instances => data_out.ndim=2
     #in colum model simulations data_in.ndim is 4
@@ -88,7 +94,7 @@ def CIO_MOMmean(data_in=None,fp_in=None,fp_out=None,skal_m=1.0,dV=1.0,ikeep1D=No
             ndim_data=data_in.ndim
             if (ndim_data == 3): [nr_inst,nt_MOMsave,nr_Mom]=data_in.shape
             if (ndim_data == 4): [nr_inst,nt_MOMsave,nz,nr_Mom]=data_in.shape
-        else: 
+        else:
             print('supply either data or fp_in')
 
 
@@ -105,7 +111,7 @@ def CIO_MOMmean(data_in=None,fp_in=None,fp_out=None,skal_m=1.0,dV=1.0,ikeep1D=No
         if (igetSTD == 1):
             MOM_StdDev = np.expand_dims(np.std(data_out_ColIntegr, axis=0), axis=0)
         if (igetSTD == 2):
-            MOM_StdDev = np.abs(np.percentile(data_out_ColIntegr, [10,90], axis=0)-data_out) # als positive deviation von Mittelwert angeben
+            MOM_StdDev = np.abs(np.percentile(data_out_ColIntegr, [10,90], axis=0)-data_out) # given as positive deviations from the mean value
     else:
         #covers cases:
             # box model data
@@ -114,7 +120,7 @@ def CIO_MOMmean(data_in=None,fp_in=None,fp_out=None,skal_m=1.0,dV=1.0,ikeep1D=No
         if (igetSTD == 1):
             MOM_StdDev = np.expand_dims(np.std(data_in, axis=0), axis=0)
         if (igetSTD == 2):
-            MOM_StdDev = np.abs(np.percentile(data_in, [10,90], axis=0)-data_out) # als positive deviation von Mittelwert angeben
+            MOM_StdDev = np.abs(np.percentile(data_in, [10,90], axis=0)-data_out) # given as positive deviations from the mean value
 
     #print(data_out)
     if (fp_out is not None):
@@ -151,7 +157,6 @@ def Moments_k0_3(nEK_sip_ins,mEK_sip_ins):
     return moments_k
 ##############################################################################
 
-
 def get_first_second_highest_SIPmass(mEK_sip_tmp):
     [nr_inst,nr_GVplot,nr_SIPs]= mEK_sip_tmp.shape
     maxM  = np.zeros([nr_inst,nr_GVplot])
@@ -174,7 +179,8 @@ def get_isep(zEK_sip_ins,zGBsep,nz):
     #iz=0
     #print(iz,iSIP_GBsep[iz],zGBsep[iz])
     for iz in range(1,nz+1):
-        while (zEK_sip_ins[iSIP] < zGBsep[iz]): iSIP+=1
+        while (zEK_sip_ins[iSIP] < zGBsep[iz]):
+            iSIP+=1
         iSIP_GBsep[iz]=iSIP
         #print(iz,iSIP_GBsep[iz],zGBsep[iz])
     #print(iSIP_GBsep)
@@ -190,7 +196,7 @@ def get_isep2(zEK_sip_ins,zGBsep,nz,nrSIPs):
     iz=0
     #print(iz,iSIP_GBsep[iz],zGBsep[iz])
     for iz in range(1,nz+1):
-        while (zEK_sip_ins[iSIP] < zGBsep[iz]): 
+        while (zEK_sip_ins[iSIP] < zGBsep[iz]):
             if (iSIP < nrSIPs-1):
                 iSIP += 1
             else:
@@ -242,7 +248,7 @@ def as_list(x):
         return x
     else:
         return [x]
-    
+
 
 def openfile(fn,options='r'):
     import os

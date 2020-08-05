@@ -1,8 +1,8 @@
-########################################################################
-#
-# Programm zum Berechnen der Sedimentation 
-#
-########################################################################
+'''
+Computation of terminal fall speed
+'''
+#GCCif (KERNEL == 1 && LongK_Options == 2)  || (COLUMN == 1 && PROCESS != 2) 
+# this block is active, if Long kernel values are explicitly computed (and not read from a file) or if sedimentation is switched on in the column model
 
 import sys
 import Misc as FK
@@ -10,12 +10,7 @@ import numpy as np
 import math
 
 
-#GCCif (KERNEL == 1 && LongK_Options == 2)  || (COLUMN == 1 && PROCESS != 2) 
-#Block aktiv, wenn Long-Kernel-Werte explizit berechnet werden oder wenn im Saeulenmodell Sedimentation aktiviert ist
-'''
-Berechnung der Fallgeschwindigkeiten nach Beard 
-'''
-#Code übernommen aus Botts F77 code
+#converted from Botts F77 code using Beards parametrisation
 def Fallg(r):
     #r      IN: radius in m
     #winf  OUT: fall speed in m/s
@@ -71,24 +66,3 @@ def Fallg(r):
 
 ##############################################################################
 #GCCendif /* (KERNEL == 1 && LongK_Options == 2)  || (COLUMN == 1 && PROCESS != 2) */
-
-
-##GCCif (COLUMN == 1 && PROCESS != 2) 
-
-#def Sedimentation(nr_SIPs,mEK_sip_ins,zEK_sip_ins,dt,rho_w):
-
-    #rEK_sip_ins=np.array(np.zeros(int(nr_SIPs)))
-
-    #for i in range(0,int(nr_SIPs)):
-        ##Umrechnung von Masse in Radius
-        #rEK_sip_ins[i]=(mEK_sip_ins[i]/((4/3)*math.pi*rho_w))**(1/3)*10**6; #in Mikrometer
-
-    #fallg=np.array(np.zeros(int(nr_SIPs)))
-    ##Berechnung der Fallgeschwindigkeiten nach Long
-    #[fallg,rr]=FK.Fallg(rEK_sip_ins,int(nr_SIPs))
-
-    #zEK_sip_ins=zEK_sip_ins-dt*fallg
-
-    #return zEK_sip_ins
-
-##GCCendif /*  (COLUMN == 1 && PROCESS != 2)  */
