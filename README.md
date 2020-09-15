@@ -4,7 +4,7 @@ coalescence/aggregation column model
 
 The code was used to produce the data and generate figures of the study
 
-Collection/Aggregation in a Lagrangian cloud microphysical model: Insights from column model applications
+Collisional growth in a particle-based cloud microphysical model: Insights from column model simulations using LCM1D (v1.0)
 
 The code was run on Linux system with a C-shell, sed, gcc and Python 3
 
@@ -21,5 +21,5 @@ Then only Python and gcc are necessary for a successful execution of the code.
 p.s.:
 Before running the program on your machine,
 you may need to adapt a few calls/folders in the csh scripts
-(the locations can be found by searching for "#### CHANGE"). In particular, fp_Wang and fp_Bott should point to the directories in which the reference bin model data is stored (these data are available from the Zenodo data set with DOI 10.5281/zenodo.3547341)
+(the locations can be found by searching for "#### CHANGE"). In particular, fp_Wang and fp_Bott should point to the directories in which the reference bin model data is stored (these data are available from the Zenodo data set with DOI 10.5281/zenodo.4030878)
 See file "ProgramVersions.txt" for a list of program versions for which the code was successfully exectued.
